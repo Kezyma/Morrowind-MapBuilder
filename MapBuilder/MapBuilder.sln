@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Morroweb.Net.Data", "Morroweb.Net.Data\Morroweb.Net.Data.csproj", "{226FB457-69E3-4D5E-8023-AE7FA6C8DB66}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Morroweb.Net.Services", "Morroweb.Net.Services\Morroweb.Net.Services.csproj", "{B24C5480-C16D-4D92-8BAF-FB054F962CE7}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Morroweb.Net.MapGenerator", "Morroweb.Net.MapGenerator\Morroweb.Net.MapGenerator.csproj", "{2BA7D292-1016-4A80-8A5D-EA2EE61207A5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{226FB457-69E3-4D5E-8023-AE7FA6C8DB66}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{226FB457-69E3-4D5E-8023-AE7FA6C8DB66}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{226FB457-69E3-4D5E-8023-AE7FA6C8DB66}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{226FB457-69E3-4D5E-8023-AE7FA6C8DB66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B24C5480-C16D-4D92-8BAF-FB054F962CE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B24C5480-C16D-4D92-8BAF-FB054F962CE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B24C5480-C16D-4D92-8BAF-FB054F962CE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B24C5480-C16D-4D92-8BAF-FB054F962CE7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2BA7D292-1016-4A80-8A5D-EA2EE61207A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2BA7D292-1016-4A80-8A5D-EA2EE61207A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2BA7D292-1016-4A80-8A5D-EA2EE61207A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2BA7D292-1016-4A80-8A5D-EA2EE61207A5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5A5385AB-2B4D-4115-9C8E-0B2D9E74C872}
+	EndGlobalSection
+EndGlobal

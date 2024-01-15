@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Morroweb.Net.MapGenerator": {
+      "commandName": "Project",
+      "commandLineArgs": "test"
+    }
+  }
+}
