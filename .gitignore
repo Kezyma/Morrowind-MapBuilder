@@ -2,3 +2,6 @@
 MapBuilder/.vs
 MapBuilder/*/bin
 MapBuilder/*/obj
+**/bin
+**/obj
+**/.vs

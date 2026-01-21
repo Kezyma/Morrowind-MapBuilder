@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO.Compression;
-using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Morroweb.Net.Services
 {
     public class EspExtractorService
     {
         public EspExtractorService() { }
-        private const string Tes3convUrl = "https://github.com/Greatness7/tes3conv/releases/download/v0.1.0/windows-latest.zip";
+        private const string Tes3convUrl = "https://github.com/Greatness7/tes3conv/releases/download/v0.4.0/windows-latest.zip";
         public void ExtractEsps(string dataDir, string outputDir, string[] modList = null, bool cleanup = false)
         {
             Console.WriteLine("Extracting Esps");
