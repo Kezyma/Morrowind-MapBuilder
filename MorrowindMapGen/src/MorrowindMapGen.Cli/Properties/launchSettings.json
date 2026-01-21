@@ -2,7 +2,7 @@
   "profiles": {
     "MorrowindMapGen.Cli": {
       "commandName": "Project",
-      "commandLineArgs": "generate -c \u0022D:\\TESMapBuilder\\profiles\\Default\\openmw.cfg\u0022 -o \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Output\u0022 -b -m -t \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Output\\Tools\u0022 -v --underlayer \u0022Landscape\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\Landscape\u0022 --overlayer \u0022Grid\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\Grid\u0022 --overlayer \u0022Regions\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\Regions\u0022 --overlayer \u0022Borders\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\Borders\u0022 --overlayer \u0022Roads\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\Roads\u0022 --overlayer \u0022Region Names\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\RegionNames\u0022 --overlayer \u0022Locations\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\Locations\u0022 --overlayer \u0022Settlements\u0022 \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Layers\\Settlements\u0022"
+      "commandLineArgs": "generate -m -t \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\temp\u0022 -c \u0022D:\\TESMapBuilder\\profiles\\Default\\openmw.cfg\u0022 -o \u0022D:\\Repositories\\Github\\Morrowind-MapBuilder\\Output\u0022 -v --overlayer \u0022Grid\u0022 \u0022D:\\Repositories\\Github\\Layers\\Grid\u0022"
     }
   }
 }

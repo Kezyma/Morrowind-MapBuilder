@@ -4,6 +4,7 @@ using Microsoft.Win32;
 using MorrowindMapGen.Core;
 using MorrowindMapGen.Core.Configuration;
 using MorrowindMapGen.Core.MapGeneration;
+using MorrowindMapGen.Core.Tools;
 
 namespace MorrowindMapGen.Cli;
 
@@ -23,6 +24,7 @@ class Program
         {
             "generate" => await RunGenerateAsync(args[1..]),
             "validate" => RunValidate(args[1..]),
+            "convert-webp" => await RunConvertWebpAsync(args[1..]),
             _ => HandleUnknownCommand(command)
         };
     }
@@ -39,8 +41,9 @@ class Program
               mwmapgen <command> [options]
 
             Commands:
-              generate    Generate a map from a Morrowind installation
-              validate    Validate a configuration file
+              generate      Generate a map from a Morrowind installation
+              validate      Validate a configuration file
+              convert-webp  Convert PNG files to WebP format
 
             Generate Options:
               -c, --config <path>     Path to Morrowind.ini or openmw.cfg
@@ -59,6 +62,13 @@ class Program
               --morrowind             Auto-detect Morrowind.ini from Windows registry
               --openmw                Auto-detect openmw.cfg from Documents\My Games\OpenMW
 
+            Convert-WebP Options:
+              -i, --input <path>      Input directory containing PNG files (required)
+              -o, --output <path>     Output directory for WebP files (required)
+              --lossy                 Use lossy compression (default: lossless)
+              -q, --quality <0-100>   Quality level for lossy compression (default: 90)
+              -v, --verbose           Enable verbose output
+
             Layer Options:
               Layer folders should contain (x,y).png tiles matching the OpenMW coordinate format.
               Optional fallback.png in the layer folder will be used for missing tiles.
@@ -70,6 +80,8 @@ class Program
               mwmapgen generate --openmw -o "./map" --underlayer worldmap "./worldmap_tiles"
               mwmapgen generate --openmw -o "./map" --overlayer grid "./grid_tiles"
               mwmapgen validate --morrowind
+              mwmapgen convert-webp -i "./tiles" -o "./tiles-webp"
+              mwmapgen convert-webp -i "./tiles" -o "./tiles-webp" --lossy -q 85
             """);
     }
 
@@ -472,6 +484,84 @@ class Program
         catch (Exception ex)
         {
             logger.LogError(ex, "Validation failed: {Message}", ex.Message);
+            return 1;
+        }
+    }
+
+    static async Task<int> RunConvertWebpAsync(string[] args)
+    {
+        string? inputPath = null;
+        string? outputPath = null;
+        bool lossless = true;
+        int quality = 90;
+        bool verbose = false;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+
+            switch (arg)
+            {
+                case "-i":
+                case "--input":
+                    if (i + 1 < args.Length) inputPath = args[++i];
+                    break;
+                case "-o":
+                case "--output":
+                    if (i + 1 < args.Length) outputPath = args[++i];
+                    break;
+                case "--lossy":
+                    lossless = false;
+                    break;
+                case "-q":
+                case "--quality":
+                    if (i + 1 < args.Length && int.TryParse(args[++i], out var q))
+                    {
+                        quality = Math.Clamp(q, 0, 100);
+                    }
+                    break;
+                case "-v":
+                case "--verbose":
+                    verbose = true;
+                    break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(inputPath))
+        {
+            Console.Error.WriteLine("Error: --input is required");
+            return 1;
+        }
+
+        if (string.IsNullOrEmpty(outputPath))
+        {
+            Console.Error.WriteLine("Error: --output is required");
+            return 1;
+        }
+
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole();
+            builder.SetMinimumLevel(verbose ? LogLevel.Debug : LogLevel.Information);
+        });
+
+        var logger = loggerFactory.CreateLogger<Program>();
+
+        try
+        {
+            var converter = new PngToWebpConverter(loggerFactory.CreateLogger<PngToWebpConverter>());
+            var converted = await converter.ConvertDirectoryAsync(
+                Path.GetFullPath(inputPath),
+                Path.GetFullPath(outputPath),
+                lossless,
+                quality);
+
+            logger.LogInformation("Successfully converted {Count} files", converted);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Conversion failed: {Message}", ex.Message);
             return 1;
         }
     }

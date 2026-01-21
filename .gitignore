@@ -5,3 +5,5 @@ MapBuilder/*/obj
 **/bin
 **/obj
 **/.vs
+Output/
+temp/
