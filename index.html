@@ -80,56 +80,49 @@
                 maxZoom: mapMaxZoom * 2,
                 noWrap: true,
                 tms: false,
-                errorTileUrl: 'base/fallback.png'
             }),
-            "Grid": L.tileLayer('Grid/{z}/{x}/{y}.png', {
-                minZoom: mapMinZoom,
-                maxNativeZoom: mapMaxZoom,
-                maxZoom: mapMaxZoom * 2,
-                noWrap: true,
-                errorTileUrl: 'Grid/fallback.png'
-            }),
+            //"Grid": L.tileLayer('Grid/{z}/{x}/{y}.png', {
+            //    minZoom: mapMinZoom,
+            //    maxNativeZoom: mapMaxZoom,
+            //    maxZoom: mapMaxZoom * 2,
+            //    noWrap: true,
+            //    errorTileUrl: 'Grid/fallback.png'
+            //}),
             "Regions": L.tileLayer('Regions/{z}/{x}/{y}.png', {
                 minZoom: mapMinZoom,
                 maxNativeZoom: mapMaxZoom,
                 maxZoom: mapMaxZoom * 2,
                 noWrap: true,
-                errorTileUrl: 'Regions/fallback.png'
             }),
             "Borders": L.tileLayer('Borders/{z}/{x}/{y}.png', {
                 minZoom: mapMinZoom,
                 maxNativeZoom: mapMaxZoom,
                 maxZoom: mapMaxZoom * 2,
                 noWrap: true,
-                errorTileUrl: 'Borders/fallback.png'
             }),
             "Roads": L.tileLayer('Roads/{z}/{x}/{y}.png', {
                 minZoom: mapMinZoom,
                 maxNativeZoom: mapMaxZoom,
                 maxZoom: mapMaxZoom * 2,
                 noWrap: true,
-                errorTileUrl: 'Roads/fallback.png'
             }),
             "Region Names": L.tileLayer('Region Names/{z}/{x}/{y}.png', {
                 minZoom: mapMinZoom,
                 maxNativeZoom: mapMaxZoom,
                 maxZoom: mapMaxZoom * 2,
                 noWrap: true,
-                errorTileUrl: 'Region Names/fallback.png'
             }),
             "Locations": L.tileLayer('Locations/{z}/{x}/{y}.png', {
                 minZoom: mapMinZoom,
                 maxNativeZoom: mapMaxZoom,
                 maxZoom: mapMaxZoom * 2,
                 noWrap: true,
-                errorTileUrl: 'Locations/fallback.png'
             }),
             "Settlements": L.tileLayer('Settlements/{z}/{x}/{y}.png', {
                 minZoom: mapMinZoom,
                 maxNativeZoom: mapMaxZoom,
                 maxZoom: mapMaxZoom * 2,
                 noWrap: true,
-                errorTileUrl: 'Settlements/fallback.png',
             }),
         }
 
@@ -177,238 +170,11 @@
                 }
             }
 
-            // Add appropriate markers to the map for the current zoom level
-            if (map.getZoom() >= mapMaxZoom) {
-                //doorMarkers.addTo(map);
-            } else {
-                //cellMarkers.addTo(map);
-            }
-
             overlayLayers["Cells"] = cellMarkers;
             overlayLayers["Doors"] = doorMarkers;
-            /*
-                       // Toggle between markers when zoom level changes
-                       map.on('zoomend', function () {
-                           if (markerToggleOn) {
-                               if (map.getZoom() >= mapMaxZoom) {
-                                   map.addLayer(doorMarkers);
-                                   map.removeLayer(cellMarkers);
-                               } else {
-                                   map.addLayer(cellMarkers);
-                                   map.removeLayer(doorMarkers);
-                               }
-                           }
-                       });
-           
-                       // Marker toggle control
-                       L.Control.MarkerToggle = L.Control.extend({
-                           options: { position: 'topleft' },
-                           onAdd: function (map) {
-                               var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                               container.style.fontSize = '1rem';
-                               container.innerHTML = '<i class="fa-solid fa-location-dot"></i>';
-                               container.style.backgroundColor = 'white';
-                               container.style.width = '30px';
-                               container.style.height = '30px';
-                               container.style.lineHeight = '30px';
-                               container.style.textAlign = 'center';
-                               container.style.cursor = 'pointer';
-                               container.onclick = function () {
-                                   if (markerToggleOn == true) {
-                                       map.removeLayer(cellMarkers);
-                                       map.removeLayer(doorMarkers);
-                                       markerToggleOn = false;
-                                   } else if (map.getZoom() >= mapMaxZoom) {
-                                       map.addLayer(doorMarkers);
-                                       markerToggleOn = true;
-                                   } else {
-                                       map.addLayer(cellMarkers);
-                                       markerToggleOn = true;
-                                   }
-                               };
-                               return container;
-                           }
-                       });
-                       new L.Control.MarkerToggle({ position: 'topleft' }).addTo(map);
-                       */
 
-            var layerControl = L.control.layers(baseLayers, overlayLayers, {
-
-            });
+            var layerControl = L.control.layers(baseLayers, overlayLayers, {});
             layerControl.addTo(map);
-
-            // Layer toggle control
-            /*
-            L.Control.LayerToggle = L.Control.extend({
-                options: { position: 'topright' },
-                onAdd: function (map) {
-                    var container = L.DomUtil.create('div', 'leaflet-control');
-
-                    var ulBtn0 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn', container);
-                    ulBtn0.innerHTML = 'Landscape';
-                    ulBtn0.style.backgroundColor = 'white';
-                    ulBtn0.style.padding = '5px 10px';
-                    ulBtn0.style.marginBottom = '2px';
-                    ulBtn0.style.fontSize = '12px';
-                    ulBtn0.onclick = function () {
-                        var ul = underlayers[0];
-                        if (ul.visible) {
-                            map.removeLayer(ul.layer);
-                            ul.visible = false;
-                            ulBtn0.classList.add('disabled');
-                        } else {
-                            ul.layer.addTo(map);
-                            ul.layer.bringToBack();
-                            ul.visible = true;
-                            ulBtn0.classList.remove('disabled');
-                        }
-                    };
-
-                    var olBtn0 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn disabled', container);
-                    olBtn0.innerHTML = 'Grid';
-                    olBtn0.style.backgroundColor = 'white';
-                    olBtn0.style.padding = '5px 10px';
-                    olBtn0.style.marginBottom = '2px';
-                    olBtn0.style.fontSize = '12px';
-                    olBtn0.onclick = function () {
-                        var ol = overlayers[0];
-                        if (ol.visible) {
-                            map.removeLayer(ol.layer);
-                            ol.visible = false;
-                            olBtn0.classList.add('disabled');
-                        } else {
-                            ol.layer.addTo(map);
-                            ol.layer.bringToFront();
-                            ol.visible = true;
-                            olBtn0.classList.remove('disabled');
-                        }
-                    };
-
-                    var olBtn1 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn disabled', container);
-                    olBtn1.innerHTML = 'Regions';
-                    olBtn1.style.backgroundColor = 'white';
-                    olBtn1.style.padding = '5px 10px';
-                    olBtn1.style.marginBottom = '2px';
-                    olBtn1.style.fontSize = '12px';
-                    olBtn1.onclick = function () {
-                        var ol = overlayers[1];
-                        if (ol.visible) {
-                            map.removeLayer(ol.layer);
-                            ol.visible = false;
-                            olBtn1.classList.add('disabled');
-                        } else {
-                            ol.layer.addTo(map);
-                            ol.layer.bringToFront();
-                            ol.visible = true;
-                            olBtn1.classList.remove('disabled');
-                        }
-                    };
-
-                    var olBtn2 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn', container);
-                    olBtn2.innerHTML = 'Borders';
-                    olBtn2.style.backgroundColor = 'white';
-                    olBtn2.style.padding = '5px 10px';
-                    olBtn2.style.marginBottom = '2px';
-                    olBtn2.style.fontSize = '12px';
-                    olBtn2.onclick = function () {
-                        var ol = overlayers[2];
-                        if (ol.visible) {
-                            map.removeLayer(ol.layer);
-                            ol.visible = false;
-                            olBtn2.classList.add('disabled');
-                        } else {
-                            ol.layer.addTo(map);
-                            ol.layer.bringToFront();
-                            ol.visible = true;
-                            olBtn2.classList.remove('disabled');
-                        }
-                    };
-
-                    var olBtn3 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn disabled', container);
-                    olBtn3.innerHTML = 'Roads';
-                    olBtn3.style.backgroundColor = 'white';
-                    olBtn3.style.padding = '5px 10px';
-                    olBtn3.style.marginBottom = '2px';
-                    olBtn3.style.fontSize = '12px';
-                    olBtn3.onclick = function () {
-                        var ol = overlayers[3];
-                        if (ol.visible) {
-                            map.removeLayer(ol.layer);
-                            ol.visible = false;
-                            olBtn3.classList.add('disabled');
-                        } else {
-                            ol.layer.addTo(map);
-                            ol.layer.bringToFront();
-                            ol.visible = true;
-                            olBtn3.classList.remove('disabled');
-                        }
-                    };
-
-                    var olBtn4 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn', container);
-                    olBtn4.innerHTML = 'Region Names';
-                    olBtn4.style.backgroundColor = 'white';
-                    olBtn4.style.padding = '5px 10px';
-                    olBtn4.style.marginBottom = '2px';
-                    olBtn4.style.fontSize = '12px';
-                    olBtn4.onclick = function () {
-                        var ol = overlayers[4];
-                        if (ol.visible) {
-                            map.removeLayer(ol.layer);
-                            ol.visible = false;
-                            olBtn4.classList.add('disabled');
-                        } else {
-                            ol.layer.addTo(map);
-                            ol.layer.bringToFront();
-                            ol.visible = true;
-                            olBtn4.classList.remove('disabled');
-                        }
-                    };
-
-                    var olBtn5 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn disabled', container);
-                    olBtn5.innerHTML = 'Locations';
-                    olBtn5.style.backgroundColor = 'white';
-                    olBtn5.style.padding = '5px 10px';
-                    olBtn5.style.marginBottom = '2px';
-                    olBtn5.style.fontSize = '12px';
-                    olBtn5.onclick = function () {
-                        var ol = overlayers[5];
-                        if (ol.visible) {
-                            map.removeLayer(ol.layer);
-                            ol.visible = false;
-                            olBtn5.classList.add('disabled');
-                        } else {
-                            ol.layer.addTo(map);
-                            ol.layer.bringToFront();
-                            ol.visible = true;
-                            olBtn5.classList.remove('disabled');
-                        }
-                    };
-
-                    var olBtn6 = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn disabled', container);
-                    olBtn6.innerHTML = 'Settlements';
-                    olBtn6.style.backgroundColor = 'white';
-                    olBtn6.style.padding = '5px 10px';
-                    olBtn6.style.marginBottom = '2px';
-                    olBtn6.style.fontSize = '12px';
-                    olBtn6.onclick = function () {
-                        var ol = overlayers[6];
-                        if (ol.visible) {
-                            map.removeLayer(ol.layer);
-                            ol.visible = false;
-                            olBtn6.classList.add('disabled');
-                        } else {
-                            ol.layer.addTo(map);
-                            ol.layer.bringToFront();
-                            ol.visible = true;
-                            olBtn6.classList.remove('disabled');
-                        }
-                    };
-
-                    return container;
-                }
-            });
-            new L.Control.LayerToggle().addTo(map);
-            */
 
         } catch (e) {
             console.error('Error setting up markers:', e);
