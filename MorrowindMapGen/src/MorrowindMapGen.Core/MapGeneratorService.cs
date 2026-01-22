@@ -382,7 +382,9 @@ public class MapGeneratorService
     }
 
     /// <summary>
-    /// Extracts markers by merging plugins and converting to JSON.
+    /// Extracts markers by processing each plugin individually in load order.
+    /// This approach replaces the previous merge_to_master method which was causing
+    /// marker data loss during the merge process.
     /// </summary>
     /// <param name="gameConfig">Game configuration.</param>
     /// <param name="toolManager">Tool manager.</param>
@@ -396,31 +398,40 @@ public class MapGeneratorService
         MapMetadata metadata,
         CancellationToken cancellationToken)
     {
-        var mergeDir = Path.Combine(workingDir, "merge");
-        Directory.CreateDirectory(mergeDir);
+        var aggregator = new PluginMarkerAggregator(
+            _loggerFactory.CreateLogger<PluginMarkerAggregator>());
 
-        // Merge all plugins
-        _logger.LogInformation("Merging plugins...");
-        var mergeRunner = new MergeToMasterRunner(
-            _loggerFactory.CreateLogger<MergeToMasterRunner>(),
-            toolManager,
-            _loggerFactory);
-
-        var mergedPath = Path.Combine(mergeDir, "merged.esm");
-        await mergeRunner.MergePluginsAsync(gameConfig, mergedPath, cancellationToken: cancellationToken);
-
-        // Convert to JSON
-        _logger.LogInformation("Converting to JSON...");
         var tes3convRunner = new Tes3ConvRunner(
             _loggerFactory.CreateLogger<Tes3ConvRunner>(),
             toolManager);
 
-        var jsonPath = Path.Combine(mergeDir, "merged.json");
-        await tes3convRunner.ConvertToJsonAsync(mergedPath, jsonPath, cancellationToken);
+        // Get plugins in load order, filtering out unsupported file types
+        var plugins = gameConfig.GetPluginsInLoadOrder()
+            .Where(p => !p.FileName.EndsWith(".omwscripts", StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
-        // Extract markers (uses raw game grid coordinates)
-        _logger.LogInformation("Extracting markers from JSON...");
-        var markerExtractor = new MarkerExtractor(_loggerFactory.CreateLogger<MarkerExtractor>());
-        return markerExtractor.ExtractFromJson(jsonPath);
+        _logger.LogInformation("Processing {Count} plugins for markers...", plugins.Count);
+
+        // Process each plugin in load order
+        foreach (var plugin in plugins)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var jsonPath = Path.Combine(workingDir,
+                Path.ChangeExtension(plugin.FileName, ".json"));
+
+            _logger.LogDebug("Converting {Plugin} to JSON...", plugin.FileName);
+
+            await tes3convRunner.ConvertToJsonAsync(plugin.FullPath, jsonPath, cancellationToken);
+
+            // Process the plugin's markers
+            aggregator.ProcessPlugin(jsonPath);
+
+            // Clean up JSON immediately to save disk space
+            try { File.Delete(jsonPath); }
+            catch { /* ignore cleanup errors */ }
+        }
+
+        return aggregator.GetMarkers();
     }
 }
