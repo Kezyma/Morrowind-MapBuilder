@@ -130,6 +130,29 @@ public partial class MainForm : Form
         {
             btnToggleType.Text = "Toggle Type";
         }
+
+        // Toggle Enabled button - enabled for custom layers and Cells/Doors, not Generated Map
+        var canToggleEnabled = selectedLayer != null &&
+            (selectedLayer.Name != "Generated Map");
+        btnToggleEnabled.Enabled = canToggleEnabled;
+
+        // Update Toggle Enabled button text based on current state
+        if (selectedLayer != null && canToggleEnabled)
+        {
+            bool isEnabled;
+            if (selectedLayer.Name == "Cells")
+                isEnabled = _settings.CellMarkersEnabled;
+            else if (selectedLayer.Name == "Doors")
+                isEnabled = _settings.DoorMarkersEnabled;
+            else
+                isEnabled = selectedLayer.EnabledByDefault;
+
+            btnToggleEnabled.Text = isEnabled ? "Disable" : "Enable";
+        }
+        else
+        {
+            btnToggleEnabled.Text = "Toggle Enabled";
+        }
     }
 
     private GuiLayerInfo? GetSelectedLayer()
@@ -400,6 +423,44 @@ public partial class MainForm : Form
                     }
                 }
                 customLayer.IsOverlay = !customLayer.IsOverlay;
+            }
+        }
+
+        RefreshLayersList();
+        UpdateUIState();
+    }
+
+    private void btnToggleEnabled_Click(object sender, EventArgs e)
+    {
+        var selectedLayer = GetSelectedLayer();
+        if (selectedLayer == null)
+            return;
+
+        // Check if this is a built-in marker layer (Cells/Doors)
+        if (selectedLayer.IsBuiltIn && selectedLayer.Name == "Cells")
+        {
+            _settings.CellMarkersEnabled = !_settings.CellMarkersEnabled;
+            chkCellMarkers.Checked = _settings.CellMarkersEnabled;
+        }
+        else if (selectedLayer.IsBuiltIn && selectedLayer.Name == "Doors")
+        {
+            _settings.DoorMarkersEnabled = !_settings.DoorMarkersEnabled;
+            chkDoorMarkers.Checked = _settings.DoorMarkersEnabled;
+        }
+        else if (selectedLayer.IsBuiltIn && selectedLayer.Name == "Generated Map")
+        {
+            // Generated Map is always enabled as a base or overlay, can't be disabled
+            MessageBox.Show("The Generated Map layer is always enabled.", "Info",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        else
+        {
+            // Custom layer - find it and toggle
+            var customLayer = _settings.CustomLayers.FirstOrDefault(l => l.Id == selectedLayer.Id);
+            if (customLayer != null)
+            {
+                customLayer.EnabledByDefault = !customLayer.EnabledByDefault;
             }
         }
 

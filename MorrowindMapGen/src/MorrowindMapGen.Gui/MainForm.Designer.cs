@@ -269,11 +269,17 @@ partial class MainForm
         this.btnRenameLayer.AutoSize = true;
         this.btnRenameLayer.Click += btnRenameLayer_Click;
 
+        this.btnToggleEnabled = new Button();
+        this.btnToggleEnabled.Text = "Toggle Enabled";
+        this.btnToggleEnabled.AutoSize = true;
+        this.btnToggleEnabled.Click += btnToggleEnabled_Click;
+
         this.panelLayerButtons.Controls.Add(this.btnAddLayer);
         this.panelLayerButtons.Controls.Add(this.btnRemoveLayer);
         this.panelLayerButtons.Controls.Add(this.btnMoveUp);
         this.panelLayerButtons.Controls.Add(this.btnMoveDown);
         this.panelLayerButtons.Controls.Add(this.btnToggleType);
+        this.panelLayerButtons.Controls.Add(this.btnToggleEnabled);
         this.panelLayerButtons.Controls.Add(this.btnRenameLayer);
 
         this.groupLayers.Controls.Add(this.listLayers);
@@ -377,6 +383,7 @@ partial class MainForm
     private Button btnMoveUp;
     private Button btnMoveDown;
     private Button btnToggleType;
+    private Button btnToggleEnabled;
     private Button btnRenameLayer;
 
     // Progress controls

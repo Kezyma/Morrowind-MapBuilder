@@ -111,7 +111,10 @@ public class HtmlGenerator
     <head>
         <meta name='viewport' content='width=device-width, initial-scale=1.0'>
         <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css' />
+        <link rel='stylesheet' href='https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css' />
+        <link rel='stylesheet' href='https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css' />
         <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
+        <script src='https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js'></script>
         <style>
             .leaflet-tooltip { background-color: black; border: 1px solid #caa560; border-radius: 0; color: #caa560; }
             .leaflet-tooltip::before { display: none; }
@@ -127,8 +130,9 @@ public class HtmlGenerator
         sb.AppendLine();
 
         // Generate base layer definitions (underlayers)
-        var baseLayers = layers.Where(l => !l.IsOverlay).ToList();
-        var overlayLayers = layers.Where(l => l.IsOverlay).ToList();
+        // Sort by SortOrder to preserve user-defined layer ordering
+        var baseLayers = layers.Where(l => !l.IsOverlay).OrderBy(l => l.SortOrder).ToList();
+        var overlayLayers = layers.Where(l => l.IsOverlay).OrderBy(l => l.SortOrder).ToList();
 
         var baseLayerDefs = new StringBuilder();
         var overlayLayerDefs = new StringBuilder();
@@ -231,8 +235,42 @@ var mwIcon = L.icon({{
 }});
 
 // Create marker feature groups
-var cellMarkers = new L.FeatureGroup();
-var doorMarkers = new L.FeatureGroup();
+var cellMarkers = L.markerClusterGroup({{
+    disableClusteringAtZoom: 5,
+    maxClusterRadius: 50,
+    spiderfyOnMaxZoom: false,
+    showCoverageOnHover: false,
+    iconCreateFunction: function (cluster) {{
+        var labels = getClusterLabels(cluster);
+        var clusterLabels = labels.join('<br/>');
+        cluster.bindTooltip(clusterLabels);
+        return mwIcon;
+    }}
+}});
+var doorMarkers = L.markerClusterGroup({{
+    disableClusteringAtZoom: 8,
+    maxClusterRadius: 40,
+    spiderfyOnMaxZoom: false,
+    showCoverageOnHover: false,
+    iconCreateFunction: function (cluster) {{
+        var labels = getClusterLabels(cluster);
+        var clusterLabels = labels.join('<br/>');
+        cluster.bindTooltip(clusterLabels);
+        return mwIcon;
+    }}
+}});
+
+function getClusterLabels(cluster) {{
+    var directLabels = [];
+    if (cluster._markers != null) {{
+        directLabels = cluster._markers.map(m => m._tooltip._content.split(',')[0]);
+    }}
+    for (var child in cluster._childClusters) {{
+        console.log(child)
+        directLabels = directLabels.concat(getClusterLabels(cluster._childClusters[child]));
+    }}
+    return directLabels.filter((value, index, array) => array.indexOf(value) === index);;
+}}
 
 // Helper to convert game coordinates to normalized pixel coordinates
 // Game coords: X increases east, Y increases north

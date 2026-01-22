@@ -92,6 +92,12 @@ public class TES3Reference
     [JsonPropertyName("id")]
     public string? Id { get; set; }
 
+    /// <summary>
+    /// Whether this reference has been deleted by a plugin.
+    /// </summary>
+    [JsonPropertyName("deleted")]
+    public bool IsDeleted { get; set; }
+
     [JsonPropertyName("mast_index")]
     public int MastIndex { get; set; }
 

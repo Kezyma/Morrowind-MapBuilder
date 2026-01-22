@@ -30,6 +30,12 @@ public class PluginMarkerAggregator
     private readonly Dictionary<string, DoorMarker> _doors = new();
 
     /// <summary>
+    /// Secondary index mapping (cellGridX, cellGridY, refr_index) to door key.
+    /// Used to find and remove doors when a mod deletes a reference (which has no destination).
+    /// </summary>
+    private readonly Dictionary<(int, int, int), string> _doorsByReference = new();
+
+    /// <summary>
     /// Count of plugins processed.
     /// </summary>
     public int PluginsProcessed { get; private set; }
@@ -107,12 +113,42 @@ public class PluginMarkerAggregator
                     };
                     cellsAdded++;
                 }
+                else
+                {
+                    // Empty name - remove any existing marker at this location
+                    // This handles mods that "clear" a named cell
+                    if (_cellsByGrid.Remove((gridX, gridY)))
+                    {
+                        _logger.LogDebug("Removed cell marker at ({X}, {Y}) - name cleared by plugin",
+                            gridX, gridY);
+                    }
+                }
 
                 // Process door references
                 if (cell.References != null)
                 {
                     foreach (var reference in cell.References)
                     {
+                        // Check if this reference is marked as deleted FIRST
+                        // Deleted references often have their destination stripped
+                        if (reference.IsDeleted)
+                        {
+                            // Try to find and remove the door by reference index
+                            // This handles mods that delete doors without providing destination
+                            var refKey = (gridX, gridY, reference.RefrIndex);
+                            if (_doorsByReference.TryGetValue(refKey, out var doorKey))
+                            {
+                                if (_doors.Remove(doorKey))
+                                {
+                                    _doorsByReference.Remove(refKey);
+                                    _logger.LogDebug("Removed deleted door by refr_index {RefIndex} at cell ({X}, {Y})",
+                                        reference.RefrIndex, gridX, gridY);
+                                }
+                            }
+                            continue;
+                        }
+
+                        // Skip if no destination (not a door)
                         if (!reference.HasDestination ||
                             string.IsNullOrWhiteSpace(reference.Destination?.Cell))
                             continue;
@@ -131,6 +167,11 @@ public class PluginMarkerAggregator
                             GridX = doorGridX,
                             GridY = doorGridY
                         };
+
+                        // Also index by reference so we can find it when a mod deletes it
+                        var doorRefKey = (gridX, gridY, reference.RefrIndex);
+                        _doorsByReference[doorRefKey] = key;
+
                         doorsAdded++;
                     }
                 }
@@ -170,6 +211,7 @@ public class PluginMarkerAggregator
     {
         _cellsByGrid.Clear();
         _doors.Clear();
+        _doorsByReference.Clear();
         PluginsProcessed = 0;
     }
 }
