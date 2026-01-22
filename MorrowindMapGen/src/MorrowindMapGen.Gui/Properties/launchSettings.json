@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MorrowindMapGen.Gui": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    }
+  }
+}

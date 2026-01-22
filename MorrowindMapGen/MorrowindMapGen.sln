@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MorrowindMapGen.Cli", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MorrowindMapGen.Tests", "tests\MorrowindMapGen.Tests\MorrowindMapGen.Tests.csproj", "{82B46CC9-582A-44F0-8BB5-869E9762BD0B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MorrowindMapGen.Gui", "src\MorrowindMapGen.Gui\MorrowindMapGen.Gui.csproj", "{83989F53-60CE-403B-850D-9C4DED2B0DBD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,18 @@ Global
 		{82B46CC9-582A-44F0-8BB5-869E9762BD0B}.Release|x64.Build.0 = Release|Any CPU
 		{82B46CC9-582A-44F0-8BB5-869E9762BD0B}.Release|x86.ActiveCfg = Release|Any CPU
 		{82B46CC9-582A-44F0-8BB5-869E9762BD0B}.Release|x86.Build.0 = Release|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Debug|x64.Build.0 = Debug|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Debug|x86.Build.0 = Debug|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Release|x64.ActiveCfg = Release|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Release|x64.Build.0 = Release|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Release|x86.ActiveCfg = Release|Any CPU
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -65,5 +79,6 @@ Global
 		{DC8E5C64-18EE-4343-8132-B2B6E3DF2042} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{8F35461E-B026-4547-A84A-5DE9C44CE980} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{82B46CC9-582A-44F0-8BB5-869E9762BD0B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{83989F53-60CE-403B-850D-9C4DED2B0DBD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

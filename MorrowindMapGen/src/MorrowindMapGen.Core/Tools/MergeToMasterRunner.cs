@@ -8,15 +8,20 @@ namespace MorrowindMapGen.Core.Tools;
 /// </summary>
 public class MergeToMasterRunner : ToolRunner
 {
-    public MergeToMasterRunner(ILogger<MergeToMasterRunner> logger, ToolManager toolManager)
+    private readonly ILoggerFactory _loggerFactory;
+
+    public MergeToMasterRunner(ILogger<MergeToMasterRunner> logger, ToolManager toolManager, ILoggerFactory? loggerFactory = null)
         : base(logger, toolManager)
     {
+        _loggerFactory = loggerFactory ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
     }
 
     protected override ToolInfo Tool => KnownTools.MergeToMaster;
 
     /// <summary>
     /// Merges all plugins in the configuration into a single master ESM file.
+    /// Uses a smart merge strategy that analyzes plugin dependencies and merges
+    /// each plugin into its last listed master to preserve cells and doors.
     /// </summary>
     /// <param name="config">Game configuration with plugins to merge.</param>
     /// <param name="outputPath">Path for the merged ESM output.</param>
@@ -29,15 +34,18 @@ public class MergeToMasterRunner : ToolRunner
         bool removeDeleted = true,
         CancellationToken cancellationToken = default)
     {
-        var plugins = config.GetPluginsInLoadOrder().ToList();
+        // Get plugins, filtering out unsupported file types
+        var configPlugins = config.GetPluginsInLoadOrder()
+            .Where(p => !p.FileName.EndsWith(".omwscripts", StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
-        if (plugins.Count == 0)
+        if (configPlugins.Count == 0)
         {
             throw new ToolException("No plugins to merge.");
         }
 
         // Validate all plugin files exist
-        foreach (var plugin in plugins)
+        foreach (var plugin in configPlugins)
         {
             if (!File.Exists(plugin.FullPath))
             {
@@ -52,51 +60,102 @@ public class MergeToMasterRunner : ToolRunner
             Directory.CreateDirectory(outputDir);
         }
 
-        Logger.LogInformation("Merging {Count} plugins into {Output}...", plugins.Count, Path.GetFileName(outputPath));
+        Logger.LogInformation("Merging {Count} plugins into {Output}...", configPlugins.Count, Path.GetFileName(outputPath));
 
-        // Copy ALL plugins to the output directory with their original names.
-        // This is necessary because merge_to_master needs to resolve master dependencies
-        // (e.g., Tribunal.esm depends on Morrowind.esm).
-        var localPlugins = new List<string>();
-        foreach (var plugin in plugins)
+        // Step 1: Copy all plugins to working directory
+        Logger.LogInformation("Step 1: Copying plugins to working directory...");
+        var pluginInfos = new List<PluginInfo>();
+
+        foreach (var plugin in configPlugins)
         {
             var localPath = Path.Combine(outputDir!, plugin.FileName);
             File.Copy(plugin.FullPath, localPath, overwrite: true);
-            localPlugins.Add(localPath);
-            Logger.LogDebug("Copied plugin to merge directory: {Plugin}", plugin.FileName);
-        }
 
-        // The first plugin becomes our master (already copied with its original name)
-        var masterPath = localPlugins[0];
-
-        // Merge each subsequent plugin into the master
-        // NOTE: Do NOT delete plugins during this loop - later plugins may depend on earlier ones
-        // (e.g., Patch for Purists.esm depends on Tribunal.esm)
-        for (int i = 1; i < localPlugins.Count; i++)
-        {
-            var pluginPath = localPlugins[i];
-            Logger.LogDebug("Merging plugin {Index}/{Total}: {Plugin}",
-                i + 1, plugins.Count, Path.GetFileName(pluginPath));
-
-            await MergeSinglePluginAsync(pluginPath, masterPath, removeDeleted, cancellationToken);
-        }
-
-        // Rename the merged master to the requested output path if different
-        if (!string.Equals(masterPath, outputPath, StringComparison.OrdinalIgnoreCase))
-        {
-            File.Move(masterPath, outputPath, overwrite: true);
-        }
-
-        // Clean up all copied plugin files (except the output which was already moved/renamed)
-        foreach (var pluginPath in localPlugins)
-        {
-            if (File.Exists(pluginPath) && !string.Equals(pluginPath, outputPath, StringComparison.OrdinalIgnoreCase))
+            pluginInfos.Add(new PluginInfo
             {
-                try { File.Delete(pluginPath); } catch { /* ignore */ }
+                FileName = plugin.FileName,
+                FullPath = localPath
+            });
+
+            Logger.LogDebug("Copied: {Plugin}", plugin.FileName);
+        }
+
+        // Step 2: Convert each plugin to JSON and read dependencies
+        Logger.LogInformation("Step 2: Analyzing plugin dependencies...");
+        var tes3convRunner = new Tes3ConvRunner(
+            _loggerFactory.CreateLogger<Tes3ConvRunner>(),
+            ToolManager);
+
+        var mergeCalculator = new PluginMergeCalculator(
+            _loggerFactory.CreateLogger<PluginMergeCalculator>());
+
+        foreach (var plugin in pluginInfos)
+        {
+            var jsonPath = Path.ChangeExtension(plugin.FullPath, ".json");
+            await tes3convRunner.ConvertToJsonAsync(plugin.FullPath, jsonPath, cancellationToken);
+
+            plugin.JsonPath = jsonPath;
+            plugin.Masters = mergeCalculator.ReadMasterDependencies(jsonPath);
+
+            if (plugin.Masters.Count > 0)
+            {
+                Logger.LogDebug("{Plugin} depends on: {Masters}",
+                    plugin.FileName, string.Join(", ", plugin.Masters));
+            }
+            else
+            {
+                Logger.LogDebug("{Plugin} has no masters (base game file)", plugin.FileName);
             }
         }
 
-        Logger.LogInformation("Successfully merged {Count} plugins", plugins.Count);
+        // Step 3: Calculate correct merge order
+        Logger.LogInformation("Step 3: Calculating merge order...");
+        var mergeOperations = mergeCalculator.CalculateMergeOrder(pluginInfos);
+
+        // Step 4: Execute merges in calculated order
+        Logger.LogInformation("Step 4: Merging {Count} plugins...", mergeOperations.Count);
+
+        foreach (var op in mergeOperations)
+        {
+            var sourcePath = op.Source.FullPath;
+            var targetPath = Path.Combine(outputDir!, op.TargetFileName);
+
+            Logger.LogDebug("Merging {Source} into {Target}",
+                op.Source.FileName, op.TargetFileName);
+
+            await MergeSinglePluginAsync(sourcePath, targetPath, removeDeleted, cancellationToken);
+        }
+
+        // Step 5: Identify the final merged master
+        // After all merges, find the base master (first plugin with no masters)
+        var baseMaster = pluginInfos.FirstOrDefault(p => p.Masters.Count == 0) ?? pluginInfos[0];
+        var finalMasterPath = Path.Combine(outputDir!, baseMaster.FileName);
+
+        // Rename to requested output path if different
+        if (!string.Equals(finalMasterPath, outputPath, StringComparison.OrdinalIgnoreCase))
+        {
+            File.Move(finalMasterPath, outputPath, overwrite: true);
+        }
+
+        // Clean up: delete all copied plugins and JSON files except output
+        Logger.LogDebug("Cleaning up temporary files...");
+        foreach (var plugin in pluginInfos)
+        {
+            // Delete plugin file if not the output
+            if (File.Exists(plugin.FullPath) &&
+                !string.Equals(plugin.FullPath, outputPath, StringComparison.OrdinalIgnoreCase))
+            {
+                try { File.Delete(plugin.FullPath); } catch { /* ignore */ }
+            }
+
+            // Delete JSON file
+            if (!string.IsNullOrEmpty(plugin.JsonPath) && File.Exists(plugin.JsonPath))
+            {
+                try { File.Delete(plugin.JsonPath); } catch { /* ignore */ }
+            }
+        }
+
+        Logger.LogInformation("Successfully merged {Count} plugins", configPlugins.Count);
 
         return outputPath;
     }
@@ -135,6 +194,8 @@ public class MergeToMasterRunner : ToolRunner
         args.Add("-o"); // Overwrite without backup
         args.Add($"\"{pluginPath}\"");
         args.Add($"\"{masterPath}\"");
+        args.Add("--apply-moved-references");
+        args.Add("--preserve-duplicate-references");
 
         var arguments = string.Join(" ", args);
         var result = await RunToolAsync(arguments, cancellationToken: cancellationToken);

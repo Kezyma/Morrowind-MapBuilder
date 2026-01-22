@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using MorrowindMapGen.Core.Configuration;
 
@@ -134,22 +136,23 @@ public class OpenMWMapGenRunner : ToolRunner
             Logger.LogInformation("Starting OpenMW Map Generator...");
             Logger.LogWarning("Note: Do NOT minimize the OpenMW window - this will pause map extraction!");
 
-            // Run from the tool directory but with our custom config
-            var result = await RunToolAsync(
+            // Run the tool with file system monitoring to detect when interior cells start
+            var result = await RunWithInteriorDetectionAsync(
+                toolPath,
                 arguments,
-                workingDirectory: toolDir,
-                timeout: TimeSpan.FromHours(2),
-                cancellationToken: cancellationToken);
+                localMapOutput,
+                toolDir,
+                TimeSpan.FromHours(2),
+                cancellationToken);
 
-            if (!result.Success)
+            if (!result.Success && !result.WasTerminatedEarly)
             {
                 throw new ToolException($"OpenMW Map Generator failed with exit code {result.ExitCode}: {result.StandardError}");
             }
 
-            // Check for completion message in output
-            if (!result.StandardOutput.Contains("Map extraction complete", StringComparison.OrdinalIgnoreCase))
+            if (result.WasTerminatedEarly)
             {
-                Logger.LogWarning("Map extraction may not have completed successfully - completion message not found in output");
+                Logger.LogInformation("Terminated early after detecting interior cell generation");
             }
 
             // Verify tiles were generated
@@ -159,7 +162,7 @@ public class OpenMWMapGenRunner : ToolRunner
                 throw new ToolException($"No tile files were generated in {localMapOutput}");
             }
 
-            Logger.LogInformation("Map generation complete. Generated {Count} tile files in {Duration:F1}s",
+            Logger.LogInformation("Map generation complete. Generated {Count} exterior tile files in {Duration:F1}s",
                 tileFiles.Length, result.Duration.TotalSeconds);
 
             return localMapOutput;
@@ -188,5 +191,162 @@ public class OpenMWMapGenRunner : ToolRunner
     public bool IsAvailable()
     {
         return ToolManager.IsToolAvailable(Tool);
+    }
+
+    /// <summary>
+    /// Result of running the map generator with early termination support.
+    /// </summary>
+    private class MapGenRunResult
+    {
+        public int ExitCode { get; init; }
+        public string StandardOutput { get; init; } = string.Empty;
+        public string StandardError { get; init; } = string.Empty;
+        public TimeSpan Duration { get; init; }
+        public bool WasTerminatedEarly { get; init; }
+        public bool Success => ExitCode == 0 || WasTerminatedEarly;
+    }
+
+    /// <summary>
+    /// Regex pattern to match coordinate pattern in filenames (e.g., "(0, -11)" or "(-5,3)").
+    /// </summary>
+    private static readonly Regex CoordinatePattern = new(@"\(-?\d+,\s*-?\d+\)", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Runs the map generator with file system monitoring to detect interior cells.
+    /// When an interior cell is detected (file without coordinates), the process is terminated early.
+    /// </summary>
+    private async Task<MapGenRunResult> RunWithInteriorDetectionAsync(
+        string toolPath,
+        string arguments,
+        string outputDirectory,
+        string workingDirectory,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var sw = Stopwatch.StartNew();
+        var wasTerminatedEarly = false;
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = toolPath,
+            Arguments = arguments,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        var outputBuilder = new System.Text.StringBuilder();
+        var errorBuilder = new System.Text.StringBuilder();
+
+        process.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data != null)
+            {
+                outputBuilder.AppendLine(e.Data);
+                Logger.LogTrace("[openmw-map-gen] {Output}", e.Data);
+            }
+        };
+
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data != null)
+            {
+                errorBuilder.AppendLine(e.Data);
+                Logger.LogTrace("[openmw-map-gen] [ERR] {Output}", e.Data);
+            }
+        };
+
+        // Set up file system watcher to detect interior cells
+        using var watcher = new FileSystemWatcher(outputDirectory)
+        {
+            Filter = "*.png",
+            NotifyFilter = NotifyFilters.FileName,
+            IncludeSubdirectories = true,
+            EnableRaisingEvents = false // Enable after process starts
+        };
+
+        var interiorDetectedCts = new CancellationTokenSource();
+        var exteriorTileCount = 0;
+
+        watcher.Created += (_, e) =>
+        {
+            var fileName = Path.GetFileNameWithoutExtension(e.Name);
+
+            // Check if filename contains coordinate pattern
+            if (!CoordinatePattern.IsMatch(fileName ?? string.Empty))
+            {
+                // This is an interior cell - no coordinates in filename
+                Logger.LogDebug("Detected interior cell: {FileName}", fileName);
+                interiorDetectedCts.Cancel();
+            }
+            else
+            {
+                Interlocked.Increment(ref exteriorTileCount);
+                if (exteriorTileCount % 100 == 0)
+                {
+                    Logger.LogDebug("Generated {Count} exterior tiles...", exteriorTileCount);
+                }
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        // Enable the watcher now that the process is running
+        watcher.EnableRaisingEvents = true;
+
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            timeoutCts.Token,
+            interiorDetectedCts.Token);
+
+        try
+        {
+            await process.WaitForExitAsync(linkedCts.Token);
+        }
+        catch (OperationCanceledException) when (interiorDetectedCts.IsCancellationRequested)
+        {
+            // Interior cell detected - terminate early
+            wasTerminatedEarly = true;
+            Logger.LogInformation("Interior cell detected after {Count} exterior tiles - terminating process...", exteriorTileCount);
+
+            try
+            {
+                process.Kill(entireProcessTree: true);
+                // Give it a moment to clean up
+                await Task.Delay(500, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug("Error killing process: {Message}", ex.Message);
+            }
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            throw new ToolException($"OpenMW Map Generator timed out after {timeout}");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            throw;
+        }
+
+        sw.Stop();
+        watcher.EnableRaisingEvents = false;
+
+        return new MapGenRunResult
+        {
+            ExitCode = wasTerminatedEarly ? 0 : (process.HasExited ? process.ExitCode : -1),
+            StandardOutput = outputBuilder.ToString(),
+            StandardError = errorBuilder.ToString(),
+            Duration = sw.Elapsed,
+            WasTerminatedEarly = wasTerminatedEarly
+        };
     }
 }

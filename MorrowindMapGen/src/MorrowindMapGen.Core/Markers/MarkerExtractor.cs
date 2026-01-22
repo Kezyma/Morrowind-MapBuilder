@@ -26,10 +26,8 @@ public class MarkerExtractor
     /// Extracts markers from a tes3conv JSON file.
     /// </summary>
     /// <param name="jsonPath">Path to the JSON file.</param>
-    /// <param name="minX">Minimum X cell coordinate from map tiles (for normalization).</param>
-    /// <param name="maxY">Maximum Y cell coordinate from map tiles (for normalization).</param>
-    /// <returns>Collection of extracted markers.</returns>
-    public MarkerCollection ExtractFromJson(string jsonPath, int? minX = null, int? maxY = null)
+    /// <returns>Collection of extracted markers with raw game grid coordinates.</returns>
+    public MarkerCollection ExtractFromJson(string jsonPath)
     {
         if (!File.Exists(jsonPath))
         {
@@ -118,26 +116,8 @@ public class MarkerExtractor
 
         _logger.LogDebug("Found {Count} door markers", collection.Doors.Count);
 
-        // Determine normalization offsets
-        // Use provided values or compute from the cell data
-        var offsetX = minX ?? (cellsByGrid.Count > 0 ? cellsByGrid.Keys.Min(k => k.Item1) : 0);
-        var offsetY = maxY ?? (cellsByGrid.Count > 0 ? cellsByGrid.Keys.Max(k => k.Item2) : 0);
-
-        _logger.LogDebug("Normalizing coordinates with offsetX={OffsetX}, offsetY={OffsetY}", offsetX, offsetY);
-
-        // Normalize cell marker coordinates (matching old TileGeneratorService approach)
-        foreach (var cell in collection.Cells)
-        {
-            cell.GridX = cell.GridX - offsetX;
-            cell.GridY = cell.GridY - offsetY;  // This will be 0 or negative
-        }
-
-        // Normalize door marker coordinates
-        foreach (var door in collection.Doors)
-        {
-            door.GridX = door.GridX - offsetX;
-            door.GridY = door.GridY - offsetY;  // This will be 0 or negative
-        }
+        // Use raw game grid coordinates - no normalization needed
+        // The HTML generator and CRS transformation handle coordinate mapping
 
         // Remove duplicate doors (same destination at similar positions)
         collection.Doors = DeduplicateDoors(collection.Doors);
@@ -197,5 +177,38 @@ public class MarkerExtractor
         File.WriteAllText(outputPath, json);
 
         _logger.LogInformation("Saved markers to {Path}", outputPath);
+    }
+
+    /// <summary>
+    /// Loads markers from a JSON file.
+    /// </summary>
+    /// <param name="inputPath">Path to the markers JSON file.</param>
+    /// <returns>The loaded marker collection, or null if the file doesn't exist.</returns>
+    public MarkerCollection? LoadFromJson(string inputPath)
+    {
+        if (!File.Exists(inputPath))
+        {
+            _logger.LogDebug("Markers file not found: {Path}", inputPath);
+            return null;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(inputPath);
+            var markers = JsonSerializer.Deserialize<MarkerCollection>(json);
+
+            if (markers != null)
+            {
+                _logger.LogInformation("Loaded {Cells} cells and {Doors} doors from {Path}",
+                    markers.Cells.Count, markers.Doors.Count, inputPath);
+            }
+
+            return markers;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Failed to load markers from {Path}: {Message}", inputPath, ex.Message);
+            return null;
+        }
     }
 }

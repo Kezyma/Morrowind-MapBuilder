@@ -82,4 +82,9 @@ public class MapMetadata
     /// Total number of tiles at the maximum zoom level.
     /// </summary>
     public int TotalTiles { get; set; }
+
+    /// <summary>
+    /// Whether the base/generated map has a fallback image.
+    /// </summary>
+    public bool HasFallback { get; set; }
 }

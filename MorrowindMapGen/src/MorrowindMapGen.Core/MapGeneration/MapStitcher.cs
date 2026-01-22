@@ -11,7 +11,6 @@ namespace MorrowindMapGen.Core.MapGeneration;
 public class MapStitcher
 {
     private readonly ILogger<MapStitcher> _logger;
-    private const int TileSize = 256;
     private const int MaxImageDimension = 23170; // Practical limit for large images
 
     public MapStitcher(ILogger<MapStitcher> logger)
@@ -34,13 +33,20 @@ public class MapStitcher
     {
         _logger.LogInformation("Stitching full map image...");
 
+        // Check for base directory or zoom directory
         var maxZoomDir = Path.Combine(tilesDirectory, metadata.MaxZoom.ToString());
+        if (!Directory.Exists(maxZoomDir))
+        {
+            // Try with 'base' subdirectory for layered output
+            maxZoomDir = Path.Combine(tilesDirectory, "base", metadata.MaxZoom.ToString());
+        }
 
         if (!Directory.Exists(maxZoomDir))
         {
             throw new DirectoryNotFoundException($"Max zoom directory not found: {maxZoomDir}");
         }
 
+        var tileSize = metadata.TileSize;
         var widthPixels = metadata.WidthInPixels;
         var heightPixels = metadata.HeightInPixels;
 
@@ -65,7 +71,7 @@ public class MapStitcher
         // Create the output image
         using var image = new Image<Rgba32>(widthPixels, heightPixels);
 
-        var scaledTileSize = (int)(TileSize * scale);
+        var scaledTileSize = (int)(tileSize * scale);
 
         // Find all tile directories
         var xDirs = Directory.GetDirectories(maxZoomDir)
@@ -76,22 +82,34 @@ public class MapStitcher
         var tilesProcessed = 0;
         var totalTiles = 0;
 
-        // Count total tiles first
+        // Count total tiles first (support both png and webp)
         foreach (var x in xDirs)
         {
             var xDir = Path.Combine(maxZoomDir, x.ToString());
             totalTiles += Directory.GetFiles(xDir, "*.png").Length;
+            totalTiles += Directory.GetFiles(xDir, "*.webp").Length;
+        }
+
+        if (totalTiles == 0)
+        {
+            _logger.LogWarning("No tiles found in {Dir}", maxZoomDir);
+            return;
         }
 
         _logger.LogInformation("Stitching {Total} tiles...", totalTiles);
 
         // Draw each tile
+        // Tiles are stored with normalized coordinates: X starts at 0, Y is already flipped
         foreach (var x in xDirs)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var xDir = Path.Combine(maxZoomDir, x.ToString());
-            var yFiles = Directory.GetFiles(xDir, "*.png");
+
+            // Get all tile files (png or webp)
+            var yFiles = Directory.GetFiles(xDir, "*.png")
+                .Concat(Directory.GetFiles(xDir, "*.webp"))
+                .ToList();
 
             foreach (var yFile in yFiles)
             {
@@ -106,6 +124,7 @@ public class MapStitcher
                 }
 
                 // Calculate position in output image
+                // Coordinates are already normalized (X starts at 0, Y=0 is at top)
                 var destX = x * scaledTileSize;
                 var destY = y * scaledTileSize;
 

@@ -7,6 +7,38 @@ using MorrowindMapGen.Core.Markers.Models;
 namespace MorrowindMapGen.Core.Output;
 
 /// <summary>
+/// Options for HTML generation.
+/// </summary>
+public class HtmlGeneratorOptions
+{
+    /// <summary>
+    /// File extension for tile images (e.g., ".webp" or ".png").
+    /// </summary>
+    public string TileExtension { get; set; } = ".webp";
+
+    /// <summary>
+    /// Whether cell markers are enabled by default.
+    /// </summary>
+    public bool CellMarkersEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Whether door markers are enabled by default.
+    /// </summary>
+    public bool DoorMarkersEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Whether the generated map layer is an overlay instead of a base layer.
+    /// When true, there must be at least one other base layer.
+    /// </summary>
+    public bool GeneratedMapIsOverlay { get; set; } = false;
+
+    /// <summary>
+    /// Whether the generated/base map has a fallback image.
+    /// </summary>
+    public bool BaseMapHasFallback { get; set; } = false;
+}
+
+/// <summary>
 /// Generates the HTML viewer with Leaflet.js integration.
 /// </summary>
 public class HtmlGenerator
@@ -25,8 +57,15 @@ public class HtmlGenerator
     /// <param name="metadata">Map metadata.</param>
     /// <param name="layers">Optional list of additional layers.</param>
     /// <param name="markers">Optional marker collection.</param>
-    public void GenerateViewer(string outputPath, MapMetadata metadata, List<LayerInfo>? layers = null, MarkerCollection? markers = null)
+    /// <param name="options">Optional generation options.</param>
+    public void GenerateViewer(
+        string outputPath,
+        MapMetadata metadata,
+        List<LayerInfo>? layers = null,
+        MarkerCollection? markers = null,
+        HtmlGeneratorOptions? options = null)
     {
+        options ??= new HtmlGeneratorOptions();
         _logger.LogInformation("Generating HTML viewer...");
 
         var cellsJson = "[]";
@@ -39,7 +78,7 @@ public class HtmlGenerator
             doorsJson = JsonSerializer.Serialize(markers.Doors, jsonOptions);
         }
 
-        var html = GenerateHtml(metadata, layers ?? new List<LayerInfo>(), cellsJson, doorsJson);
+        var html = GenerateHtml(metadata, layers ?? new List<LayerInfo>(), cellsJson, doorsJson, options);
 
         var directory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(directory))
@@ -52,13 +91,18 @@ public class HtmlGenerator
         _logger.LogInformation("HTML viewer generated: {Path}", outputPath);
     }
 
-    private string GenerateHtml(MapMetadata metadata, List<LayerInfo> layers, string cellsJson, string doorsJson)
+    private string GenerateHtml(MapMetadata metadata, List<LayerInfo> layers, string cellsJson, string doorsJson, HtmlGeneratorOptions options)
     {
-        // Calculate extent in pixels (matching old TileGeneratorService approach)
-        var extentX = metadata.WidthInTiles * metadata.TileSize;
-        var extentY = metadata.HeightInTiles * metadata.TileSize;
+        // Use raw game grid bounds
+        var minX = metadata.MinX;
+        var maxX = metadata.MaxX;
+        var minY = metadata.MinY;
+        var maxY = metadata.MaxY;
+        var tileSize = metadata.TileSize;
+        var maxZoom = metadata.MaxZoom;
         var hasLayers = layers.Count > 0;
         var baseTilePath = hasLayers ? "base/" : "";
+        var ext = options.TileExtension.TrimStart('.');
 
         var sb = new StringBuilder();
 
@@ -67,13 +111,10 @@ public class HtmlGenerator
     <head>
         <meta name='viewport' content='width=device-width, initial-scale=1.0'>
         <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css' />
-        <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css' />
         <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
         <style>
             .leaflet-tooltip { background-color: black; border: 1px solid #caa560; border-radius: 0; color: #caa560; }
             .leaflet-tooltip::before { display: none; }
-            .layer-toggle-btn { cursor: pointer; user-select: none; }
-            .layer-toggle-btn.disabled { opacity: 0.5; }
         </style>
     </head>
     <body style='margin:0;padding:0;height:100vh;width:100vw;'>
@@ -85,144 +126,101 @@ public class HtmlGenerator
         sb.AppendLine($"var mapDoors = {doorsJson};");
         sb.AppendLine();
 
-        // Generate layer definitions
-        var underlayers = layers.Where(l => !l.IsOverlay).ToList();
-        var overlayers = layers.Where(l => l.IsOverlay).ToList();
+        // Generate base layer definitions (underlayers)
+        var baseLayers = layers.Where(l => !l.IsOverlay).ToList();
+        var overlayLayers = layers.Where(l => l.IsOverlay).ToList();
 
-        var layerDefinitions = new StringBuilder();
-        foreach (var layer in underlayers)
-        {
-            layerDefinitions.AppendLine($@"
-underlayers.push({{
-    name: '{layer.Name}',
-    layer: L.tileLayer('{layer.Name}/{{z}}/{{x}}/{{y}}.png', {{
+        var baseLayerDefs = new StringBuilder();
+        var overlayLayerDefs = new StringBuilder();
+
+        // Generated map layer definition (with fallback for missing tiles if available)
+        var baseErrorTile = options.BaseMapHasFallback ? $",\n        errorTileUrl: '{baseTilePath}fallback.{ext}'" : "";
+        var generatedMapLayerDef = $@"
+    ""Generated Map"": L.tileLayer('{baseTilePath}{{z}}/{{x}}/{{y}}.{ext}', {{
         minZoom: mapMinZoom,
         maxNativeZoom: mapMaxZoom,
         maxZoom: mapMaxZoom * 2,
         noWrap: true,
-        errorTileUrl: '{layer.Name}/fallback.png'
-    }}),
-    visible: true
-}});");
-        }
-        foreach (var layer in overlayers)
+        tileSize: tileSize{baseErrorTile}
+    }}),";
+
+        // Add generated map to base or overlay depending on option
+        if (options.GeneratedMapIsOverlay)
         {
-            layerDefinitions.AppendLine($@"
-overlayers.push({{
-    name: '{layer.Name}',
-    layer: L.tileLayer('{layer.Name}/{{z}}/{{x}}/{{y}}.png', {{
+            overlayLayerDefs.AppendLine(generatedMapLayerDef);
+        }
+        else
+        {
+            baseLayerDefs.AppendLine(generatedMapLayerDef);
+        }
+
+        // Add other base layers
+        foreach (var layer in baseLayers)
+        {
+            var layerMaxZoom = layer.MaxNativeZoom > 0 ? layer.MaxNativeZoom : maxZoom;
+            var layerErrorTile = layer.HasFallback ? $",\n        errorTileUrl: '{layer.Name}/fallback.{ext}'" : "";
+            baseLayerDefs.AppendLine($@"
+    ""{EscapeJs(layer.Name)}"": L.tileLayer('{layer.Name}/{{z}}/{{x}}/{{y}}.{ext}', {{
         minZoom: mapMinZoom,
-        maxNativeZoom: mapMaxZoom,
+        maxNativeZoom: {layerMaxZoom},
         maxZoom: mapMaxZoom * 2,
         noWrap: true,
-        errorTileUrl: '{layer.Name}/fallback.png'
-    }}),
-    visible: true
-}});");
+        tileSize: tileSize{layerErrorTile}
+    }}),");
         }
 
-        // Generate layer toggle buttons
-        var layerToggleButtons = new StringBuilder();
-        for (int i = 0; i < underlayers.Count; i++)
+        // Add overlay tile layers
+        foreach (var layer in overlayLayers)
         {
-            var layer = underlayers[i];
-            layerToggleButtons.AppendLine($@"
-        var ulBtn{i} = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn', container);
-        ulBtn{i}.innerHTML = '{layer.Name}';
-        ulBtn{i}.style.backgroundColor = 'white';
-        ulBtn{i}.style.padding = '5px 10px';
-        ulBtn{i}.style.marginBottom = '2px';
-        ulBtn{i}.style.fontSize = '12px';
-        ulBtn{i}.onclick = function() {{
-            var ul = underlayers[{i}];
-            if (ul.visible) {{
-                map.removeLayer(ul.layer);
-                ul.visible = false;
-                ulBtn{i}.classList.add('disabled');
-            }} else {{
-                ul.layer.addTo(map);
-                ul.layer.bringToBack();
-                ul.visible = true;
-                ulBtn{i}.classList.remove('disabled');
-            }}
-        }};");
-        }
-        for (int i = 0; i < overlayers.Count; i++)
-        {
-            var layer = overlayers[i];
-            layerToggleButtons.AppendLine($@"
-        var olBtn{i} = L.DomUtil.create('div', 'leaflet-bar leaflet-control layer-toggle-btn', container);
-        olBtn{i}.innerHTML = '{layer.Name}';
-        olBtn{i}.style.backgroundColor = 'white';
-        olBtn{i}.style.padding = '5px 10px';
-        olBtn{i}.style.marginBottom = '2px';
-        olBtn{i}.style.fontSize = '12px';
-        olBtn{i}.onclick = function() {{
-            var ol = overlayers[{i}];
-            if (ol.visible) {{
-                map.removeLayer(ol.layer);
-                ol.visible = false;
-                olBtn{i}.classList.add('disabled');
-            }} else {{
-                ol.layer.addTo(map);
-                ol.layer.bringToFront();
-                ol.visible = true;
-                olBtn{i}.classList.remove('disabled');
-            }}
-        }};");
+            var layerMaxZoom = layer.MaxNativeZoom > 0 ? layer.MaxNativeZoom : maxZoom;
+            var layerErrorTile = layer.HasFallback ? $",\n        errorTileUrl: '{layer.Name}/fallback.{ext}'" : "";
+            overlayLayerDefs.AppendLine($@"
+    ""{EscapeJs(layer.Name)}"": L.tileLayer('{layer.Name}/{{z}}/{{x}}/{{y}}.{ext}', {{
+        minZoom: mapMinZoom,
+        maxNativeZoom: {layerMaxZoom},
+        maxZoom: mapMaxZoom * 2,
+        noWrap: true,
+        tileSize: tileSize{layerErrorTile}
+    }}),");
         }
 
-        // Map configuration - using extents that match the old working code
+        // Map configuration
         sb.AppendLine($@"
-var markerToggleOn = true;
-var map = null;
-var underlayers = [];
-var overlayers = [];
-
-// Map configuration
-var mapExtent = [0, -{extentY}, {extentX}, 0];
+// Map configuration - tiles stored with normalized web coordinates
+// X: offset by minX (starts at 0)
+// Y: flipped (Y=0 at top, increases southward)
+var gridMinX = {minX};
+var gridMaxX = {maxX};
+var gridMinY = {minY};
+var gridMaxY = {maxY};
+var tileSize = {tileSize};
+var cellSize = 256; // Each game cell is always 256px, regardless of output tile size
 var mapMinZoom = 0;
-var mapMaxZoom = {metadata.MaxZoom};
+var mapMaxZoom = {maxZoom};
 var mapMinResolution = Math.pow(2, mapMaxZoom);
 
-// Configure CRS with proper transformation
+// Map dimensions in cells
+var mapWidthCells = gridMaxX - gridMinX + 1;
+var mapHeightCells = gridMaxY - gridMinY + 1;
+
+// Extent in pixels (based on cell size, not tile size)
+var mapExtent = [0, 0, mapWidthCells * cellSize, mapHeightCells * cellSize];
+
+// Configure CRS - simple pixel coordinates
+// Tiles are stored with Y=0 at top (web-standard), so we need transformation
+// that doesn't negate Y (default L.CRS.Simple negates Y)
 var crs = L.CRS.Simple;
-crs.transformation = new L.Transformation(1, -mapExtent[0], -1, mapExtent[3]);
+crs.transformation = new L.Transformation(1, 0, 1, 0);
 crs.scale = function(zoom) {{ return Math.pow(2, zoom) / mapMinResolution; }};
 crs.zoom = function(scale) {{ return Math.log(scale * mapMinResolution) / Math.LN2; }};
 
 // Create map
-map = new L.Map('map', {{
+var map = new L.Map('map', {{
     maxZoom: mapMaxZoom * 2,
     minZoom: mapMinZoom,
     crs: crs,
     attributionControl: false
 }});
-
-// Initialize layer arrays
-{layerDefinitions}
-
-// Add underlayers first (bottom of stack)
-underlayers.forEach(function(l) {{ l.layer.addTo(map); }});
-
-// Add base tile layer
-var baseLayer = L.tileLayer('{baseTilePath}{{z}}/{{x}}/{{y}}.png', {{
-    minZoom: mapMinZoom,
-    maxNativeZoom: mapMaxZoom,
-    maxZoom: mapMaxZoom * 2,
-    noWrap: true,
-    tms: false,
-    errorTileUrl: '{baseTilePath}fallback.png'
-}}).addTo(map);
-
-// Add overlayers on top
-overlayers.forEach(function(l) {{ l.layer.addTo(map); }});
-
-// Fit bounds
-map.fitBounds([
-    crs.unproject(L.point(mapExtent[2], mapExtent[3])),
-    crs.unproject(L.point(mapExtent[0], mapExtent[1]))
-]);
 
 // Marker icon
 var mwIcon = L.icon({{
@@ -232,95 +230,98 @@ var mwIcon = L.icon({{
     shadowSize: [12, 12]
 }});
 
-var doorMarkers = new L.FeatureGroup();
+// Create marker feature groups
 var cellMarkers = new L.FeatureGroup();
+var doorMarkers = new L.FeatureGroup();
 
-try {{
-    // Add cell markers (using normalized grid coordinates)
-    if (mapCells != null) {{
-        for (var ix in mapCells) {{
-            // Grid coordinates are already normalized (0-based from minX/maxY)
-            // Y is inverted in the tile generation, so use gridY directly
-            L.marker([((mapCells[ix].gridY) * 256) - 128, ((mapCells[ix].gridX) * 256) + 128], {{icon: mwIcon}})
-                .addTo(cellMarkers)
-                .bindTooltip(mapCells[ix].name);
-        }}
-    }}
-
-    // Add door markers
-    if (mapDoors != null) {{
-        for (var ix in mapDoors) {{
-            L.marker([((mapDoors[ix].gridY) * 256) - 256, ((mapDoors[ix].gridX) * 256)], {{icon: mwIcon}})
-                .addTo(doorMarkers)
-                .bindTooltip(mapDoors[ix].destination);
-        }}
-    }}
-
-    // Add appropriate markers to the map for the current zoom level
-    if (map.getZoom() >= mapMaxZoom) {{
-        doorMarkers.addTo(map);
-    }} else {{
-        cellMarkers.addTo(map);
-    }}
-
-    // Toggle between markers when zoom level changes
-    map.on('zoomend', function() {{
-        if (markerToggleOn) {{
-            if (map.getZoom() >= mapMaxZoom) {{
-                map.addLayer(doorMarkers);
-                map.removeLayer(cellMarkers);
-            }} else {{
-                map.addLayer(cellMarkers);
-                map.removeLayer(doorMarkers);
-            }}
-        }}
-    }});
-
-    // Marker toggle control
-    L.Control.MarkerToggle = L.Control.extend({{
-        options: {{ position: 'topleft' }},
-        onAdd: function(map) {{
-            var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-            container.style.fontSize = '1rem';
-            container.innerHTML = '<i class=""fa-solid fa-location-dot""></i>';
-            container.style.backgroundColor = 'white';
-            container.style.width = '30px';
-            container.style.height = '30px';
-            container.style.lineHeight = '30px';
-            container.style.textAlign = 'center';
-            container.style.cursor = 'pointer';
-            container.onclick = function() {{
-                if (markerToggleOn == true) {{
-                    map.removeLayer(cellMarkers);
-                    map.removeLayer(doorMarkers);
-                    markerToggleOn = false;
-                }} else if (map.getZoom() >= mapMaxZoom) {{
-                    map.addLayer(doorMarkers);
-                    markerToggleOn = true;
-                }} else {{
-                    map.addLayer(cellMarkers);
-                    markerToggleOn = true;
-                }}
-            }};
-            return container;
-        }}
-    }});
-    new L.Control.MarkerToggle({{ position: 'topleft' }}).addTo(map);
-{(hasLayers ? $@"
-    // Layer toggle control
-    L.Control.LayerToggle = L.Control.extend({{
-        options: {{ position: 'topright' }},
-        onAdd: function(map) {{
-            var container = L.DomUtil.create('div', 'leaflet-control');
-{layerToggleButtons}
-            return container;
-        }}
-    }});
-    new L.Control.LayerToggle().addTo(map);
-" : "")}
-}} catch (e) {{
-    console.error('Error setting up markers:', e);
+// Helper to convert game coordinates to normalized pixel coordinates
+// Game coords: X increases east, Y increases north
+// Normalized: X offset by minX, Y flipped (north at top)
+// Uses cellSize (256px) not tileSize, since each game cell is always 256px
+function gameToPixel(gameX, gameY) {{
+    var normX = (gameX - gridMinX) * cellSize;
+    var normY = (gridMaxY + 1 - gameY) * cellSize;
+    return [normY, normX]; // Leaflet uses [lat, lng] = [y, x]
 }}
+
+// Add cell markers (convert from game grid to normalized pixel coordinates)
+// Add 0.5 to center marker within the cell
+if (mapCells != null) {{
+    for (var ix in mapCells) {{
+        var pos = gameToPixel(mapCells[ix].gridX + 0.5, mapCells[ix].gridY + 0.5);
+        L.marker(pos, {{icon: mwIcon}})
+            .addTo(cellMarkers)
+            .bindTooltip(mapCells[ix].name);
+    }}
+}}
+
+// Add door markers (convert from game grid with sub-cell precision)
+if (mapDoors != null) {{
+    for (var ix in mapDoors) {{
+        var pos = gameToPixel(mapDoors[ix].gridX, mapDoors[ix].gridY);
+        L.marker(pos, {{icon: mwIcon}})
+            .addTo(doorMarkers)
+            .bindTooltip(mapDoors[ix].destination);
+    }}
+}}
+
+// Define base layers
+var baseLayers = {{
+{baseLayerDefs}
+}};
+
+// Define overlay layers
+var overlayLayers = {{
+{overlayLayerDefs}
+    ""Cells"": cellMarkers,
+    ""Doors"": doorMarkers
+}};
+
+// Add the default base layer to the map");
+
+        // Determine which base layer to show by default
+        if (!options.GeneratedMapIsOverlay)
+        {
+            sb.AppendLine(@"baseLayers[""Generated Map""].addTo(map);");
+        }
+        else if (baseLayers.Count > 0)
+        {
+            // Use the first custom base layer
+            sb.AppendLine($@"baseLayers[""{EscapeJs(baseLayers[0].Name)}""].addTo(map);");
+        }
+
+        // If Generated Map is an overlay and enabled by default, add it
+        if (options.GeneratedMapIsOverlay)
+        {
+            sb.AppendLine(@"overlayLayers[""Generated Map""].addTo(map);");
+        }
+
+        // Add enabled-by-default overlays
+        foreach (var layer in overlayLayers.Where(l => l.EnabledByDefault))
+        {
+            sb.AppendLine($@"overlayLayers[""{EscapeJs(layer.Name)}""].addTo(map);");
+        }
+
+        // Add markers based on options
+        if (options.CellMarkersEnabled)
+        {
+            sb.AppendLine(@"overlayLayers[""Cells""].addTo(map);");
+        }
+        if (options.DoorMarkersEnabled)
+        {
+            sb.AppendLine(@"overlayLayers[""Doors""].addTo(map);");
+        }
+
+        sb.AppendLine($@"
+// Add layer control
+L.control.layers(baseLayers, overlayLayers).addTo(map);
+
+// Fit bounds - use normalized pixel coordinates
+// mapExtent = [0, 0, width, height] in pixels
+map.fitBounds([
+    [0, 0],
+    [mapExtent[3], mapExtent[2]]
+]);
 ");
 
         sb.AppendLine(@"        </script>
@@ -328,5 +329,13 @@ try {{
 </html>");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Escapes a string for use in JavaScript.
+    /// </summary>
+    private static string EscapeJs(string s)
+    {
+        return s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\"", "\\\"");
     }
 }
