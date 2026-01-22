@@ -20,8 +20,14 @@ public class MarkerCollection
     public List<DoorMarker> Doors { get; set; } = [];
 
     /// <summary>
+    /// Fast travel network data (nodes and routes).
+    /// </summary>
+    [JsonPropertyName("travel")]
+    public TravelData? Travel { get; set; }
+
+    /// <summary>
     /// Total count of all markers.
     /// </summary>
     [JsonIgnore]
-    public int TotalCount => Cells.Count + Doors.Count;
+    public int TotalCount => Cells.Count + Doors.Count + (Travel?.Nodes.Count ?? 0);
 }

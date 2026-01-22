@@ -126,6 +126,17 @@ public class MapGeneratorOptions
     /// When true, there must be at least one other base layer in Layers.
     /// </summary>
     public bool GeneratedMapIsOverlay { get; set; } = false;
+
+    /// <summary>
+    /// Whether to generate fast travel network layer.
+    /// Defaults to true when markers are generated.
+    /// </summary>
+    public bool GenerateTravelLayer { get; set; } = true;
+
+    /// <summary>
+    /// Whether fast travel markers are enabled by default in the viewer.
+    /// </summary>
+    public bool FastTravelEnabled { get; set; } = false;
 }
 
 /// <summary>
@@ -285,6 +296,7 @@ public class MapGeneratorService
                     toolManager,
                     workingDir,
                     metadata,
+                    options.GenerateTravelLayer,
                     cancellationToken);
 
                 // Save markers.json for future use
@@ -315,6 +327,7 @@ public class MapGeneratorService
                     TileExtension = tileOptions.FileExtension,
                     CellMarkersEnabled = options.CellMarkersEnabled,
                     DoorMarkersEnabled = options.DoorMarkersEnabled,
+                    FastTravelEnabled = options.FastTravelEnabled,
                     GeneratedMapIsOverlay = options.GeneratedMapIsOverlay,
                     BaseMapHasFallback = metadata?.HasFallback ?? false
                 };
@@ -390,16 +403,25 @@ public class MapGeneratorService
     /// <param name="toolManager">Tool manager.</param>
     /// <param name="workingDir">Working directory.</param>
     /// <param name="metadata">Map metadata with tile bounds for coordinate normalization.</param>
+    /// <param name="generateTravel">Whether to also generate travel layer data.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     private async Task<MarkerCollection> ExtractMarkersAsync(
         GameConfiguration gameConfig,
         ToolManager toolManager,
         string workingDir,
         MapMetadata metadata,
+        bool generateTravel,
         CancellationToken cancellationToken)
     {
-        var aggregator = new PluginMarkerAggregator(
+        var markerAggregator = new PluginMarkerAggregator(
             _loggerFactory.CreateLogger<PluginMarkerAggregator>());
+
+        TravelMarkerAggregator? travelAggregator = null;
+        if (generateTravel)
+        {
+            travelAggregator = new TravelMarkerAggregator(
+                _loggerFactory.CreateLogger<TravelMarkerAggregator>());
+        }
 
         var tes3convRunner = new Tes3ConvRunner(
             _loggerFactory.CreateLogger<Tes3ConvRunner>(),
@@ -425,13 +447,26 @@ public class MapGeneratorService
             await tes3convRunner.ConvertToJsonAsync(plugin.FullPath, jsonPath, cancellationToken);
 
             // Process the plugin's markers
-            aggregator.ProcessPlugin(jsonPath);
+            markerAggregator.ProcessPlugin(jsonPath);
+
+            // Process travel data if enabled
+            travelAggregator?.ProcessPlugin(jsonPath);
 
             // Clean up JSON immediately to save disk space
             try { File.Delete(jsonPath); }
             catch { /* ignore cleanup errors */ }
         }
 
-        return aggregator.GetMarkers();
+        var markers = markerAggregator.GetMarkers();
+
+        // Add travel data if generated
+        if (travelAggregator != null)
+        {
+            markers.Travel = travelAggregator.GetTravelData();
+            _logger.LogInformation("Added travel layer: {Nodes} nodes, {Routes} routes",
+                markers.Travel.Nodes.Count, markers.Travel.Routes.Count);
+        }
+
+        return markers;
     }
 }

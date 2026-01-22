@@ -160,11 +160,13 @@ public partial class TileProcessor
 
         _logger.LogInformation("Zoom levels: 0 to {MaxZoom}", maxZoom);
 
-        // Create output directory
+        // Create output directory and tiles subdirectory
         Directory.CreateDirectory(outputDirectory);
+        var tilesDir = Path.Combine(outputDirectory, "tiles");
+        Directory.CreateDirectory(tilesDir);
 
-        // Process base layer
-        var baseOutputDir = hasLayers ? Path.Combine(outputDirectory, "base") : outputDirectory;
+        // Process base layer - always use tiles/base/
+        var baseOutputDir = Path.Combine(tilesDir, "base");
         _logger.LogInformation("Processing base layer...");
 
         // Determine fallback path for base layer
@@ -194,7 +196,7 @@ public partial class TileProcessor
                 continue;
             }
 
-            var layerOutputDir = Path.Combine(outputDirectory, layer.Name);
+            var layerOutputDir = Path.Combine(tilesDir, layer.Name);
             string? layerFallbackPath = FindFallbackImage(layer.InputPath);
             layer.HasFallback = layerFallbackPath != null;
 

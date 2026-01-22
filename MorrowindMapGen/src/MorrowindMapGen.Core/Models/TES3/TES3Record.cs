@@ -163,4 +163,109 @@ public class TES3Destination
 
     [JsonPropertyName("rotation")]
     public double[]? Rotation { get; set; }
+
+    /// <summary>
+    /// Gets the X translation (world units).
+    /// </summary>
+    [JsonIgnore]
+    public double TranslationX => Translation?.Length > 0 ? Translation[0] : 0;
+
+    /// <summary>
+    /// Gets the Y translation (world units).
+    /// </summary>
+    [JsonIgnore]
+    public double TranslationY => Translation?.Length > 1 ? Translation[1] : 0;
+}
+
+/// <summary>
+/// TES3 NPC record.
+/// </summary>
+public class TES3Npc : TES3Record
+{
+    /// <summary>
+    /// Display name of the NPC.
+    /// </summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// The NPC's class (e.g., "Caravaner", "Shipmaster", "Guild Guide").
+    /// </summary>
+    [JsonPropertyName("class")]
+    public string? Class { get; set; }
+
+    /// <summary>
+    /// Faction the NPC belongs to.
+    /// </summary>
+    [JsonPropertyName("faction")]
+    public string? Faction { get; set; }
+
+    /// <summary>
+    /// AI services data.
+    /// </summary>
+    [JsonPropertyName("ai_data")]
+    public TES3AiData? AiData { get; set; }
+
+    /// <summary>
+    /// Travel destinations this NPC offers.
+    /// </summary>
+    [JsonPropertyName("travel_destinations")]
+    public List<TES3TravelDestination>? TravelDestinations { get; set; }
+
+    /// <summary>
+    /// Whether this NPC has any travel destinations.
+    /// </summary>
+    [JsonIgnore]
+    public bool HasTravelDestinations => TravelDestinations?.Count > 0;
+}
+
+/// <summary>
+/// AI service data for NPCs.
+/// </summary>
+public class TES3AiData
+{
+    /// <summary>
+    /// Services offered by the NPC (bitmask as hex string).
+    /// </summary>
+    [JsonPropertyName("services")]
+    public string? Services { get; set; }
+}
+
+/// <summary>
+/// Travel destination offered by an NPC.
+/// </summary>
+public class TES3TravelDestination
+{
+    /// <summary>
+    /// Destination cell name. Empty string for exterior cells.
+    /// </summary>
+    [JsonPropertyName("cell")]
+    public string? Cell { get; set; }
+
+    /// <summary>
+    /// Position at destination [x, y, z].
+    /// </summary>
+    [JsonPropertyName("translation")]
+    public double[]? Translation { get; set; }
+
+    [JsonPropertyName("rotation")]
+    public double[]? Rotation { get; set; }
+
+    /// <summary>
+    /// Gets the X translation (world units).
+    /// </summary>
+    [JsonIgnore]
+    public double TranslationX => Translation?.Length > 0 ? Translation[0] : 0;
+
+    /// <summary>
+    /// Gets the Y translation (world units).
+    /// </summary>
+    [JsonIgnore]
+    public double TranslationY => Translation?.Length > 1 ? Translation[1] : 0;
+
+    /// <summary>
+    /// Gets whether this is an exterior destination (no cell name).
+    /// </summary>
+    [JsonIgnore]
+    public bool IsExterior => string.IsNullOrEmpty(Cell);
 }

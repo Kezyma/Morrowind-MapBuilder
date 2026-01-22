@@ -33,13 +33,8 @@ public class MapStitcher
     {
         _logger.LogInformation("Stitching full map image...");
 
-        // Check for base directory or zoom directory
-        var maxZoomDir = Path.Combine(tilesDirectory, metadata.MaxZoom.ToString());
-        if (!Directory.Exists(maxZoomDir))
-        {
-            // Try with 'base' subdirectory for layered output
-            maxZoomDir = Path.Combine(tilesDirectory, "base", metadata.MaxZoom.ToString());
-        }
+        // Tiles are always in tiles/base/ subdirectory
+        var maxZoomDir = Path.Combine(tilesDirectory, "tiles", "base", metadata.MaxZoom.ToString());
 
         if (!Directory.Exists(maxZoomDir))
         {
@@ -47,8 +42,56 @@ public class MapStitcher
         }
 
         var tileSize = metadata.TileSize;
-        var widthPixels = metadata.WidthInPixels;
-        var heightPixels = metadata.HeightInPixels;
+
+        // Find all tile directories and calculate bounds from actual tiles
+        // This ensures correct dimensions even when layers have different bounds than base map
+        var xDirs = Directory.GetDirectories(maxZoomDir)
+            .Select(d => int.Parse(Path.GetFileName(d)))
+            .OrderBy(x => x)
+            .ToList();
+
+        if (xDirs.Count == 0)
+        {
+            _logger.LogWarning("No tile directories found in {Dir}", maxZoomDir);
+            return;
+        }
+
+        // Calculate actual tile bounds from the base map tiles
+        var minTileX = xDirs.Min();
+        var maxTileX = xDirs.Max();
+
+        // Find Y range by scanning all directories
+        var allYValues = new List<int>();
+        var totalTiles = 0;
+        foreach (var x in xDirs)
+        {
+            var xDir = Path.Combine(maxZoomDir, x.ToString());
+            var pngFiles = Directory.GetFiles(xDir, "*.png");
+            var webpFiles = Directory.GetFiles(xDir, "*.webp");
+            totalTiles += pngFiles.Length + webpFiles.Length;
+
+            var yValues = pngFiles.Concat(webpFiles)
+                .Select(f => int.Parse(Path.GetFileNameWithoutExtension(f)));
+            allYValues.AddRange(yValues);
+        }
+
+        if (totalTiles == 0)
+        {
+            _logger.LogWarning("No tiles found in {Dir}", maxZoomDir);
+            return;
+        }
+
+        var minTileY = allYValues.Min();
+        var maxTileY = allYValues.Max();
+
+        // Calculate dimensions from actual tile bounds (not metadata global bounds)
+        var widthInTiles = maxTileX - minTileX + 1;
+        var heightInTiles = maxTileY - minTileY + 1;
+        var widthPixels = widthInTiles * tileSize;
+        var heightPixels = heightInTiles * tileSize;
+
+        _logger.LogInformation("Base map bounds: X=[{MinX}, {MaxX}], Y=[{MinY}, {MaxY}] ({Width}x{Height} tiles)",
+            minTileX, maxTileX, minTileY, maxTileY, widthInTiles, heightInTiles);
 
         // Check if we need to scale down
         var scale = 1.0;
@@ -72,29 +115,7 @@ public class MapStitcher
         using var image = new Image<Rgba32>(widthPixels, heightPixels);
 
         var scaledTileSize = (int)(tileSize * scale);
-
-        // Find all tile directories
-        var xDirs = Directory.GetDirectories(maxZoomDir)
-            .Select(d => int.Parse(Path.GetFileName(d)))
-            .OrderBy(x => x)
-            .ToList();
-
         var tilesProcessed = 0;
-        var totalTiles = 0;
-
-        // Count total tiles first (support both png and webp)
-        foreach (var x in xDirs)
-        {
-            var xDir = Path.Combine(maxZoomDir, x.ToString());
-            totalTiles += Directory.GetFiles(xDir, "*.png").Length;
-            totalTiles += Directory.GetFiles(xDir, "*.webp").Length;
-        }
-
-        if (totalTiles == 0)
-        {
-            _logger.LogWarning("No tiles found in {Dir}", maxZoomDir);
-            return;
-        }
 
         _logger.LogInformation("Stitching {Total} tiles...", totalTiles);
 
@@ -124,9 +145,9 @@ public class MapStitcher
                 }
 
                 // Calculate position in output image
-                // Coordinates are already normalized (X starts at 0, Y=0 is at top)
-                var destX = x * scaledTileSize;
-                var destY = y * scaledTileSize;
+                // Offset by minimum tile coordinates to handle non-zero starting positions
+                var destX = (x - minTileX) * scaledTileSize;
+                var destY = (y - minTileY) * scaledTileSize;
 
                 // Draw tile onto output image
                 image.Mutate(ctx => ctx.DrawImage(tile, new Point(destX, destY), 1f));

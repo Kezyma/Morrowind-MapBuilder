@@ -43,8 +43,6 @@ partial class MainForm
         this.chkGenerateBigMap = new CheckBox();
         this.chkGenerateWebMap = new CheckBox();
         this.chk512pxMode = new CheckBox();
-        this.chkCellMarkers = new CheckBox();
-        this.chkDoorMarkers = new CheckBox();
 
         // Layers controls
         this.listLayers = new ListView();
@@ -198,24 +196,11 @@ partial class MainForm
         this.chk512pxMode.AutoSize = true;
         this.chk512pxMode.Location = new Point(300, 25);
 
-        this.chkCellMarkers.Text = "Cell Markers Enabled";
-        this.chkCellMarkers.AutoSize = true;
-        this.chkCellMarkers.Location = new Point(300, 50);
-        this.chkCellMarkers.Checked = true;
-        this.chkCellMarkers.CheckedChanged += chkCellMarkers_CheckedChanged;
-
-        this.chkDoorMarkers.Text = "Door Markers Enabled";
-        this.chkDoorMarkers.AutoSize = true;
-        this.chkDoorMarkers.Location = new Point(300, 75);
-        this.chkDoorMarkers.CheckedChanged += chkDoorMarkers_CheckedChanged;
-
         this.groupSteps.Controls.Add(this.chkGenerateTiles);
         this.groupSteps.Controls.Add(this.chkGenerateMarkers);
         this.groupSteps.Controls.Add(this.chkGenerateBigMap);
         this.groupSteps.Controls.Add(this.chkGenerateWebMap);
         this.groupSteps.Controls.Add(this.chk512pxMode);
-        this.groupSteps.Controls.Add(this.chkCellMarkers);
-        this.groupSteps.Controls.Add(this.chkDoorMarkers);
 
         // === Layers Group ===
         this.groupLayers.Text = "Layers";
@@ -368,8 +353,6 @@ partial class MainForm
     private CheckBox chkGenerateBigMap;
     private CheckBox chkGenerateWebMap;
     private CheckBox chk512pxMode;
-    private CheckBox chkCellMarkers;
-    private CheckBox chkDoorMarkers;
 
     // Layers controls
     private ListView listLayers;

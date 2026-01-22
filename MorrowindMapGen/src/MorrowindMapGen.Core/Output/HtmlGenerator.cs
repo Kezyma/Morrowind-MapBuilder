@@ -36,6 +36,11 @@ public class HtmlGeneratorOptions
     /// Whether the generated/base map has a fallback image.
     /// </summary>
     public bool BaseMapHasFallback { get; set; } = false;
+
+    /// <summary>
+    /// Whether fast travel markers are enabled by default.
+    /// </summary>
+    public bool FastTravelEnabled { get; set; } = false;
 }
 
 /// <summary>
@@ -70,15 +75,20 @@ public class HtmlGenerator
 
         var cellsJson = "[]";
         var doorsJson = "[]";
+        var travelJson = "null";
 
         if (markers != null)
         {
             var jsonOptions = new JsonSerializerOptions { WriteIndented = false };
             cellsJson = JsonSerializer.Serialize(markers.Cells, jsonOptions);
             doorsJson = JsonSerializer.Serialize(markers.Doors, jsonOptions);
+            if (markers.Travel != null)
+            {
+                travelJson = JsonSerializer.Serialize(markers.Travel, jsonOptions);
+            }
         }
 
-        var html = GenerateHtml(metadata, layers ?? new List<LayerInfo>(), cellsJson, doorsJson, options);
+        var html = GenerateHtml(metadata, layers ?? new List<LayerInfo>(), cellsJson, doorsJson, travelJson, options);
 
         var directory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(directory))
@@ -91,7 +101,7 @@ public class HtmlGenerator
         _logger.LogInformation("HTML viewer generated: {Path}", outputPath);
     }
 
-    private string GenerateHtml(MapMetadata metadata, List<LayerInfo> layers, string cellsJson, string doorsJson, HtmlGeneratorOptions options)
+    private string GenerateHtml(MapMetadata metadata, List<LayerInfo> layers, string cellsJson, string doorsJson, string travelJson, HtmlGeneratorOptions options)
     {
         // Use raw game grid bounds
         var minX = metadata.MinX;
@@ -101,7 +111,7 @@ public class HtmlGenerator
         var tileSize = metadata.TileSize;
         var maxZoom = metadata.MaxZoom;
         var hasLayers = layers.Count > 0;
-        var baseTilePath = hasLayers ? "base/" : "";
+        var baseTilePath = "tiles/base/";
         var ext = options.TileExtension.TrimStart('.');
 
         var sb = new StringBuilder();
@@ -127,6 +137,7 @@ public class HtmlGenerator
         // Embed marker data
         sb.AppendLine($"var mapCells = {cellsJson};");
         sb.AppendLine($"var mapDoors = {doorsJson};");
+        sb.AppendLine($"var travelData = {travelJson};");
         sb.AppendLine();
 
         // Generate base layer definitions (underlayers)
@@ -162,9 +173,9 @@ public class HtmlGenerator
         foreach (var layer in baseLayers)
         {
             var layerMaxZoom = layer.MaxNativeZoom > 0 ? layer.MaxNativeZoom : maxZoom;
-            var layerErrorTile = layer.HasFallback ? $",\n        errorTileUrl: '{layer.Name}/fallback.{ext}'" : "";
+            var layerErrorTile = layer.HasFallback ? $",\n        errorTileUrl: 'tiles/{layer.Name}/fallback.{ext}'" : "";
             baseLayerDefs.AppendLine($@"
-    ""{EscapeJs(layer.Name)}"": L.tileLayer('{layer.Name}/{{z}}/{{x}}/{{y}}.{ext}', {{
+    ""{EscapeJs(layer.Name)}"": L.tileLayer('tiles/{layer.Name}/{{z}}/{{x}}/{{y}}.{ext}', {{
         minZoom: mapMinZoom,
         maxNativeZoom: {layerMaxZoom},
         maxZoom: mapMaxZoom * 2,
@@ -177,9 +188,9 @@ public class HtmlGenerator
         foreach (var layer in overlayLayers)
         {
             var layerMaxZoom = layer.MaxNativeZoom > 0 ? layer.MaxNativeZoom : maxZoom;
-            var layerErrorTile = layer.HasFallback ? $",\n        errorTileUrl: '{layer.Name}/fallback.{ext}'" : "";
+            var layerErrorTile = layer.HasFallback ? $",\n        errorTileUrl: 'tiles/{layer.Name}/fallback.{ext}'" : "";
             overlayLayerDefs.AppendLine($@"
-    ""{EscapeJs(layer.Name)}"": L.tileLayer('{layer.Name}/{{z}}/{{x}}/{{y}}.{ext}', {{
+    ""{EscapeJs(layer.Name)}"": L.tileLayer('tiles/{layer.Name}/{{z}}/{{x}}/{{y}}.{ext}', {{
         minZoom: mapMinZoom,
         maxNativeZoom: {layerMaxZoom},
         maxZoom: mapMaxZoom * 2,
@@ -303,6 +314,69 @@ if (mapDoors != null) {{
     }}
 }}
 
+// Fast Travel layer
+var travelLayer = L.layerGroup();
+
+// Travel type colors
+var travelColors = {{
+    'SiltStrider': '#8B4513',
+    'Boat': '#4169E1',
+    'Gondola': '#20B2AA',
+    'MagesGuild': '#9932CC',
+    'Propylon': '#FFD700',
+    'Unknown': '#808080'
+}};
+
+// Travel type display labels
+var travelLabels = {{
+    'SiltStrider': 'Caravaner',
+    'Boat': 'Shipmaster',
+    'Gondola': 'Gondolier',
+    'MagesGuild': 'Guild Guide',
+    'Propylon': 'Propylon Index',
+    'Unknown': 'Other'
+}};
+
+// Create fast travel network if data exists
+if (travelData != null) {{
+    // Draw routes first (so nodes appear on top)
+    if (travelData.routes != null) {{
+        for (var ix in travelData.routes) {{
+            var route = travelData.routes[ix];
+            var fromPos = gameToPixel(route.fromGridX, route.fromGridY);
+            var toPos = gameToPixel(route.toGridX, route.toGridY);
+            var color = travelColors[route.type] || travelColors['Unknown'];
+
+            L.polyline([fromPos, toPos], {{
+                color: color,
+                weight: 2,
+                opacity: 0.7,
+                dashArray: '5, 5'
+            }}).addTo(travelLayer);
+        }}
+    }}
+
+    // Draw nodes (travel service locations)
+    if (travelData.nodes != null) {{
+        for (var ix in travelData.nodes) {{
+            var node = travelData.nodes[ix];
+            var pos = gameToPixel(node.gridX, node.gridY);
+            var color = travelColors[node.type] || travelColors['Unknown'];
+            var label = travelLabels[node.type] || travelLabels['Unknown'];
+
+            L.circleMarker(pos, {{
+                radius: 6,
+                fillColor: color,
+                color: '#000',
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            }}).addTo(travelLayer)
+              .bindTooltip(node.npcName + ' (' + label + ')');
+        }}
+    }}
+}}
+
 // Define base layers
 var baseLayers = {{
 {baseLayerDefs}
@@ -312,7 +386,8 @@ var baseLayers = {{
 var overlayLayers = {{
 {overlayLayerDefs}
     ""Cells"": cellMarkers,
-    ""Doors"": doorMarkers
+    ""Doors"": doorMarkers,
+    ""Fast Travel"": travelLayer
 }};
 
 // Add the default base layer to the map");
@@ -348,6 +423,10 @@ var overlayLayers = {{
         if (options.DoorMarkersEnabled)
         {
             sb.AppendLine(@"overlayLayers[""Doors""].addTo(map);");
+        }
+        if (options.FastTravelEnabled)
+        {
+            sb.AppendLine(@"overlayLayers[""Fast Travel""].addTo(map);");
         }
 
         sb.AppendLine($@"

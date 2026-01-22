@@ -49,8 +49,6 @@ public partial class MainForm : Form
         chkGenerateBigMap.Checked = _settings.GenerateBigMap;
         chkGenerateWebMap.Checked = _settings.GenerateWebMap;
         chk512pxMode.Checked = _settings.Use512pxTiles;
-        chkCellMarkers.Checked = _settings.CellMarkersEnabled;
-        chkDoorMarkers.Checked = _settings.DoorMarkersEnabled;
 
         // Layers
         RefreshLayersList();
@@ -67,8 +65,6 @@ public partial class MainForm : Form
         _settings.GenerateBigMap = chkGenerateBigMap.Checked;
         _settings.GenerateWebMap = chkGenerateWebMap.Checked;
         _settings.Use512pxTiles = chk512pxMode.Checked;
-        _settings.CellMarkersEnabled = chkCellMarkers.Checked;
-        _settings.DoorMarkersEnabled = chkDoorMarkers.Checked;
 
         _settingsService.Save(_settings);
     }
@@ -144,6 +140,8 @@ public partial class MainForm : Form
                 isEnabled = _settings.CellMarkersEnabled;
             else if (selectedLayer.Name == "Doors")
                 isEnabled = _settings.DoorMarkersEnabled;
+            else if (selectedLayer.Name == "Fast Travel")
+                isEnabled = _settings.FastTravelEnabled;
             else
                 isEnabled = selectedLayer.EnabledByDefault;
 
@@ -436,16 +434,18 @@ public partial class MainForm : Form
         if (selectedLayer == null)
             return;
 
-        // Check if this is a built-in marker layer (Cells/Doors)
+        // Check if this is a built-in marker layer (Cells/Doors/Fast Travel)
         if (selectedLayer.IsBuiltIn && selectedLayer.Name == "Cells")
         {
             _settings.CellMarkersEnabled = !_settings.CellMarkersEnabled;
-            chkCellMarkers.Checked = _settings.CellMarkersEnabled;
         }
         else if (selectedLayer.IsBuiltIn && selectedLayer.Name == "Doors")
         {
             _settings.DoorMarkersEnabled = !_settings.DoorMarkersEnabled;
-            chkDoorMarkers.Checked = _settings.DoorMarkersEnabled;
+        }
+        else if (selectedLayer.IsBuiltIn && selectedLayer.Name == "Fast Travel")
+        {
+            _settings.FastTravelEnabled = !_settings.FastTravelEnabled;
         }
         else if (selectedLayer.IsBuiltIn && selectedLayer.Name == "Generated Map")
         {
@@ -466,18 +466,6 @@ public partial class MainForm : Form
 
         RefreshLayersList();
         UpdateUIState();
-    }
-
-    private void chkCellMarkers_CheckedChanged(object sender, EventArgs e)
-    {
-        _settings.CellMarkersEnabled = chkCellMarkers.Checked;
-        RefreshLayersList();
-    }
-
-    private void chkDoorMarkers_CheckedChanged(object sender, EventArgs e)
-    {
-        _settings.DoorMarkersEnabled = chkDoorMarkers.Checked;
-        RefreshLayersList();
     }
 
     private void txtOpenMWConfig_Click(object sender, EventArgs e)
@@ -546,8 +534,9 @@ public partial class MainForm : Form
                 GenerateWebMap = chkGenerateWebMap.Checked,
                 Use512pxTiles = chk512pxMode.Checked,
                 OutputFormat = TileOutputFormat.WebP,
-                CellMarkersEnabled = chkCellMarkers.Checked,
-                DoorMarkersEnabled = chkDoorMarkers.Checked,
+                CellMarkersEnabled = _settings.CellMarkersEnabled,
+                DoorMarkersEnabled = _settings.DoorMarkersEnabled,
+                FastTravelEnabled = _settings.FastTravelEnabled,
                 GeneratedMapIsOverlay = _settings.GeneratedMapIsOverlay,
                 Progress = progress,
                 Layers = _settings.CustomLayers.Select(l => l.ToLayerInfo()).ToList()

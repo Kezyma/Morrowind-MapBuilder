@@ -83,6 +83,11 @@ public class GuiSettings
     public bool DoorMarkersEnabled { get; set; }
 
     /// <summary>
+    /// Whether fast travel markers are enabled by default.
+    /// </summary>
+    public bool FastTravelEnabled { get; set; }
+
+    /// <summary>
     /// Whether the generated map layer is an overlay instead of base layer.
     /// </summary>
     public bool GeneratedMapIsOverlay { get; set; }
@@ -116,11 +121,15 @@ public class GuiSettings
         var doorsLayer = GuiLayerInfo.CreateBuiltInLayer("Doors", true, 101);
         doorsLayer.EnabledByDefault = DoorMarkersEnabled;
 
+        var fastTravelLayer = GuiLayerInfo.CreateBuiltInLayer("Fast Travel", true, 102);
+        fastTravelLayer.EnabledByDefault = FastTravelEnabled;
+
         var layers = new List<GuiLayerInfo>
         {
             generatedMapLayer,
             cellsLayer,
-            doorsLayer
+            doorsLayer,
+            fastTravelLayer
         };
 
         // Add custom layers with sort order between base and markers
