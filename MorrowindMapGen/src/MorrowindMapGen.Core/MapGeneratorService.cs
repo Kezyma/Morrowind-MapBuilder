@@ -194,7 +194,7 @@ public class MapGeneratorService
             {
                 _logger.LogError("Configuration error: {Error}", error);
             }
-            throw new InvalidOperationException("Configuration validation failed.");
+            throw new InvalidOperationException($"Configuration validation failed.\n\n{string.Join("\n", validationErrors)}");
         }
 
         _logger.LogInformation("Found {Count} plugins in load order", gameConfig.EnabledPlugins.Count);

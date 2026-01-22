@@ -45,14 +45,6 @@ public class GameConfiguration
             errors.Add("No data paths configured.");
         }
 
-        foreach (var dataPath in DataPaths)
-        {
-            if (!Directory.Exists(dataPath))
-            {
-                errors.Add($"Data path does not exist: {dataPath}");
-            }
-        }
-
         if (EnabledPlugins.Count == 0)
         {
             errors.Add("No plugins enabled.");
