@@ -542,10 +542,13 @@ public partial class MainForm : Form
                 Layers = _settings.CustomLayers.Select(l => l.ToLayerInfo()).ToList()
             };
 
-            // Create logger factory
+            // Create logger factory with file logging
+            var logFilePath = Path.Combine(AppContext.BaseDirectory, "MorrowindMapGen.log");
+            var fileLoggerProvider = new FileLoggerProvider(logFilePath, LogLevel.Information);
             using var loggerFactory = LoggerFactory.Create(builder =>
             {
                 builder.SetMinimumLevel(LogLevel.Information);
+                builder.AddProvider(fileLoggerProvider);
             });
 
             var service = new MapGeneratorService(loggerFactory);

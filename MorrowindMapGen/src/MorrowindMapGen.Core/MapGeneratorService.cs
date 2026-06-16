@@ -444,7 +444,15 @@ public class MapGeneratorService
 
             _logger.LogDebug("Converting {Plugin} to JSON...", plugin.FileName);
 
-            await tes3convRunner.ConvertToJsonAsync(plugin.FullPath, jsonPath, cancellationToken);
+            try
+            {
+                await tes3convRunner.ConvertToJsonAsync(plugin.FullPath, jsonPath, cancellationToken);
+            }
+            catch (ToolException ex)
+            {
+                _logger.LogWarning("Failed to convert {Plugin}, skipping: {Message}", plugin.FileName, ex.Message);
+                continue;
+            }
 
             // Process the plugin's markers
             markerAggregator.ProcessPlugin(jsonPath);

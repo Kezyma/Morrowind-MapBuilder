@@ -40,7 +40,7 @@ public static class KnownTools
     {
         Name = "openmw-map-gen",
         Version = "V2",
-        DownloadUrl = "https://github.com/Diject/openmw-map-gen/releases/download/V2/openmw-map-gen-windows.zip",
+        DownloadUrl = "https://github.com/Diject/openmw-map-gen/releases/download/V5/openmw-map-gen-windows.zip",
         ExecutableName = "openmw.exe"
     };
 
